@@ -5,10 +5,11 @@ the strategic layer of RTS games, but it is not a unit-by-unit real-time
 simulation: armies are formations occupying grid tiles, not individually
 simulated soldiers.
 
-This is a Crit 8 vertical slice. Most of what's described below is where the
-project is going, not what's built yet — the "Crit 8 scope" section describes
-the intended target slice for Crit 8, not work that has already been
-implemented.
+This is a Crit 8 vertical slice: the proof-of-life slice described in the
+"Crit 8 scope" section below is now implemented and working end-to-end. Most
+of the rest of what's described in this document — armies, combat, research,
+alternative victory conditions, and larger match configurations — is still
+where the project is going, not what's built yet.
 
 ## Who it's for
 
@@ -89,8 +90,8 @@ the authority on game state and time, not the browser.
 
 ## Crit 8 scope
 
-Crit 8 is a proof-of-life vertical slice, not the finished game. The target
-for this stage is:
+Crit 8 is a proof-of-life vertical slice, not the finished game. This stage
+now implements:
 
 1. create or enter a campaign/lobby
 2. at least two users can participate

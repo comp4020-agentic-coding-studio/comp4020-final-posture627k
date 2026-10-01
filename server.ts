@@ -39,13 +39,90 @@ const pageShell = (title: string, body: string): string => `<!doctype html>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(title)}</title>
     <style>
-      table.world { border-collapse: collapse; width: 100%; max-width: 22rem; margin: 0.5rem 0; }
-      table.world td { border: 1px solid #999; text-align: center; vertical-align: middle;
-        font-size: 0.7rem; padding: 0; aspect-ratio: 1 / 1; }
-      table.world td.tile-mine { background: #dbeafe; font-weight: bold; }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        line-height: 1.5;
+        color: #1e293b;
+        background: #f1f5f9;
+      }
+      main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+      h1 { margin: 0 0 0.25rem; font-size: 1.5rem; }
+      h2 { margin: 0 0 0.75rem; font-size: 1.05rem; color: #334155; }
+      p { margin: 0.4rem 0; }
+      a { color: #2563eb; }
+      code { overflow-wrap: anywhere; }
+      button {
+        font: inherit;
+        padding: 0.5rem 1.1rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.375rem;
+        background: #fff;
+        cursor: pointer;
+      }
+      button:hover { background: #f8fafc; }
+      .panel {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+        padding: 1rem 1.25rem;
+        margin: 1rem 0;
+      }
+      .status-line { font-size: 1.05rem; font-weight: 600; margin: 0.3rem 0; }
+      .meta { color: #64748b; font-size: 0.85rem; }
+      .invite {
+        background: #eff6ff;
+        border: 1px dashed #93c5fd;
+        border-radius: 0.5rem;
+        padding: 0.75rem 1rem;
+      }
+      .invite code {
+        display: block;
+        margin-top: 0.35rem;
+        padding: 0.4rem 0.5rem;
+        background: #fff;
+        border: 1px solid #bfdbfe;
+        border-radius: 0.3rem;
+        font-size: 0.95rem;
+      }
+      table.world {
+        border-collapse: collapse;
+        table-layout: fixed;
+        width: 100%;
+        max-width: 640px;
+        margin: 0.75rem 0;
+      }
+      @media (min-width: 640px) {
+        table.world { width: min(70vw, 640px); }
+      }
+      table.world td {
+        border: 1px solid #94a3b8;
+        text-align: center;
+        vertical-align: middle;
+        font-size: 1rem;
+        padding: 0;
+        aspect-ratio: 1 / 1;
+        background: #f8fafc;
+      }
+      table.world td.tile-hq { background: #fde68a; }
+      table.world td.tile-resource { background: #bbf7d0; }
+      table.world td.tile-owned-empty { background: #e0f2fe; }
+      table.world td.tile-enemy { background: #fecaca; }
+      table.world td.tile-mine { box-shadow: inset 0 0 0 3px #2563eb; font-weight: 700; }
       table.world .build-form { margin: 0; width: 100%; height: 100%; }
-      table.world .build-form button { width: 100%; height: 100%; border: 0; background: #d8f5d8;
-        font-size: 0.85rem; cursor: pointer; }
+      table.world .build-form button {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        font-size: 1.4rem;
+        font-weight: 700;
+        line-height: 1;
+        color: #15803d;
+        cursor: pointer;
+      }
     </style>
   </head>
   <body>
@@ -151,9 +228,10 @@ const PRESET_LABELS: Record<ResourcePreset, string> = {
 };
 
 function renderSeatLine(seatNumber: 1 | 2, participant: Participant | undefined, approvedSeats: number[]): string {
-  if (!participant) return `<p>Seat ${seatNumber}: open</p>`;
+  if (!participant) return `<p class="meta">Seat ${seatNumber}: open</p>`;
   const approved = approvedSeats.includes(seatNumber);
-  return `<p>Seat ${seatNumber}: occupied${participant.isHost ? " (host)" : ""} — ${approved ? "approved" : "not approved"} current settings</p>`;
+  const statusClass = approved ? "status-line" : "meta";
+  return `<p class="${statusClass}">Seat ${seatNumber}: occupied${participant.isHost ? " (host)" : ""} — ${approved ? "approved" : "not approved"} current settings</p>`;
 }
 
 const WORLD_SIZE = 8;
@@ -210,6 +288,16 @@ function renderWorldGrid(world: WorldState, selfSeat: number | undefined, campai
       const mine = ownerSeat !== undefined && ownerSeat === selfSeat;
       const buildable = mine && !building;
 
+      // One of five categories, purely for background colour — the visible
+      // label/aria-label/title above remain the authoritative, text-based
+      // identification; colour is a supplementary cue only.
+      let categoryClass: string;
+      if (building?.type === "headquarters") categoryClass = "tile-hq";
+      else if (building) categoryClass = "tile-resource";
+      else if (mine) categoryClass = "tile-owned-empty";
+      else if (ownerSeat !== undefined) categoryClass = "tile-enemy";
+      else categoryClass = "";
+
       const cellContent = buildable
         ? `<form method="post" action="/c/${encodeURIComponent(campaignCode)}/build" class="build-form">
               <input type="hidden" name="row" value="${row}" />
@@ -218,7 +306,8 @@ function renderWorldGrid(world: WorldState, selfSeat: number | undefined, campai
             </form>`
         : escapeHtml(label);
 
-      rows += `            <td class="tile${mine ? " tile-mine" : ""}" aria-label="${escapeHtml(description)}" title="${escapeHtml(description)}">${cellContent}</td>\n`;
+      const classes = ["tile", categoryClass, mine ? "tile-mine" : ""].filter(Boolean).join(" ");
+      rows += `            <td class="${classes}" aria-label="${escapeHtml(description)}" title="${escapeHtml(description)}">${cellContent}</td>\n`;
     }
     rows += "          </tr>\n";
   }
@@ -244,7 +333,7 @@ function renderCampaignPage(c: Context, campaign: Campaign): Response {
 
   if (started) {
     const selfLine = self
-      ? `<p>You are seat ${self.seat}${self.isHost ? " (configuration-role host)" : ""}.</p>`
+      ? `<p class="status-line">You are seat ${self.seat}${self.isHost ? " (configuration-role host)" : ""}.</p>`
       : "<p>You are not a participant.</p>";
 
     // Settlement only ever runs for the viewer's own country, and only when
@@ -254,8 +343,8 @@ function renderCampaignPage(c: Context, campaign: Campaign): Response {
       ? (() => {
           const settlement = settleAndGetOwnCountryResources(campaign.id, identityId);
           return settlement.ok
-            ? `<p>Resources: ${settlement.balance}</p>
-      <p>Resource buildings produce every 10 seconds.</p>`
+            ? `<p class="status-line">Resources: ${settlement.balance}</p>
+      <p class="meta">Resource buildings produce every 10 seconds.</p>`
             : "";
         })()
       : "";
@@ -263,18 +352,28 @@ function renderCampaignPage(c: Context, campaign: Campaign): Response {
     const world = getWorldForCampaign(campaign.id);
     const gridHtml = renderWorldGrid(world, self?.seat, campaign.code);
 
-    body = `      <h1>Campaign ${escapeHtml(campaign.code)}</h1>
-      <p>Status: started.</p>
-      <p>Resource-production preset (locked): ${escapeHtml(presetLabel)}</p>
-      <p>Settings are locked and cannot change after start.</p>
-      <p>Seat 1: ${seat1 ? `occupied${seat1.isHost ? " (host)" : ""}` : "open"}</p>
-      <p>Seat 2: ${seat2 ? `occupied${seat2.isHost ? " (host)" : ""}` : "open"}</p>
-      ${selfLine}
-      ${resourcesLine}
-${gridHtml}`;
+    body = `      <header class="panel">
+        <h1>Campaign ${escapeHtml(campaign.code)}</h1>
+        <p class="status-line">Status: started.</p>
+        ${selfLine}
+      </header>
+
+      <section class="panel">
+        <h2>Match</h2>
+        ${resourcesLine}
+        <p>Resource-production preset (locked): ${escapeHtml(presetLabel)}</p>
+        <p class="meta">Settings are locked and cannot change after start.</p>
+        <p class="meta">Seat 1: ${seat1 ? `occupied${seat1.isHost ? " (host)" : ""}` : "open"}</p>
+        <p class="meta">Seat 2: ${seat2 ? `occupied${seat2.isHost ? " (host)" : ""}` : "open"}</p>
+      </section>
+
+      <section class="panel">
+        <h2>World</h2>
+${gridHtml}
+      </section>`;
   } else {
     const selfSection = self
-      ? `<p>You are seat ${self.seat}${self.isHost ? " (configuration-role host)" : ""}.</p>`
+      ? `<p class="status-line">You are seat ${self.seat}${self.isHost ? " (configuration-role host)" : ""}.</p>`
       : seat2
         ? "<p>This campaign is full. You are not a participant.</p>"
         : `      <form method="post" action="/c/${encodeURIComponent(campaign.code)}/join">
@@ -283,15 +382,14 @@ ${gridHtml}`;
 
     const approveControls = self
       ? approvedSeats.includes(self.seat)
-        ? `<p>You have approved settings revision ${campaign.settingsRevision}.</p>`
+        ? `<p class="meta">You have approved settings revision ${campaign.settingsRevision}.</p>`
         : `      <form method="post" action="/c/${encodeURIComponent(campaign.code)}/approve">
         <button type="submit">Approve current settings</button>
       </form>`
       : "";
 
-    const hostControls = self?.isHost
-      ? `      <h2>Host: resource-production preset</h2>
-      <form method="post" action="/c/${encodeURIComponent(campaign.code)}/settings">
+    const settingsControls = self?.isHost
+      ? `      <form method="post" action="/c/${encodeURIComponent(campaign.code)}/settings">
         <label>
           <input type="radio" name="preset" value="standard" ${campaign.resourcePreset === "standard" ? "checked" : ""} />
           ${escapeHtml(PRESET_LABELS.standard)}
@@ -301,29 +399,48 @@ ${gridHtml}`;
           ${escapeHtml(PRESET_LABELS.rapid)}
         </label><br />
         <button type="submit">Update setting</button>
-      </form>
-
-      <h2>Host: start match</h2>
-      ${
-        ready
-          ? `<form method="post" action="/c/${encodeURIComponent(campaign.code)}/start">
-        <button type="submit">Start match</button>
       </form>`
-          : "<p>Not ready: both seats must be filled and both participants must approve the current settings.</p>"
-      }`
       : "";
 
-    body = `      <h1>Campaign ${escapeHtml(campaign.code)}</h1>
-      <p>Status: pre-start (configuring).</p>
-      <p>Shareable URL: <code>${escapeHtml(shareUrl)}</code></p>
-      <p>Resource-production preset: ${escapeHtml(presetLabel)}</p>
-      <p>Settings revision: ${campaign.settingsRevision}</p>
-      ${renderSeatLine(1, seat1, approvedSeats)}
-      ${renderSeatLine(2, seat2, approvedSeats)}
-      <p>Ready to start: ${ready ? "yes" : "no"}</p>
-      ${selfSection}
-      ${approveControls}
-      ${hostControls}`;
+    const startControls = self?.isHost
+      ? ready
+        ? `<form method="post" action="/c/${encodeURIComponent(campaign.code)}/start">
+        <button type="submit">Start match</button>
+      </form>`
+        : "<p class=\"meta\">Not ready: both seats must be filled and both participants must approve the current settings.</p>"
+      : "";
+
+    body = `      <header class="panel">
+        <h1>Campaign ${escapeHtml(campaign.code)}</h1>
+        <p class="status-line">Status: pre-start (configuring).</p>
+        ${selfSection}
+        <p class="meta">Other players' changes appear after you refresh this page.</p>
+      </header>
+
+      <section class="panel invite">
+        <strong>Invite link</strong> — send this to Player 2:
+        <code>${escapeHtml(shareUrl)}</code>
+      </section>
+
+      <section class="panel">
+        <h2>Players</h2>
+        ${renderSeatLine(1, seat1, approvedSeats)}
+        ${renderSeatLine(2, seat2, approvedSeats)}
+      </section>
+
+      <section class="panel">
+        <h2>Match settings</h2>
+        <p>Resource-production preset: ${escapeHtml(presetLabel)}</p>
+        <p class="meta">Settings revision: ${campaign.settingsRevision}</p>
+        ${settingsControls}
+      </section>
+
+      <section class="panel">
+        <h2>Approval</h2>
+        <p class="status-line">Ready to start: ${ready ? "yes" : "no"}</p>
+        ${approveControls}
+        ${startControls}
+      </section>`;
   }
 
   return c.html(pageShell(`Campaign ${campaign.code}`, body));
