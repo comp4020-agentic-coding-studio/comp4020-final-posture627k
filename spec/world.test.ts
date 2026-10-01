@@ -79,8 +79,14 @@ it("no world exists before a successful start", async () => {
 });
 
 it("a successful start creates exactly 64 tiles with the fixed symmetric layout", async () => {
-  const { a, code } = await startFullyApprovedCampaign();
-  const page = await pageText(a, code);
+  const { code } = await startFullyApprovedCampaign();
+  // Viewed as a non-participant: since Slice 5, an owned-and-empty tile
+  // renders as a build-form button rather than its plain "C1"/"C2" label
+  // for whichever participant actually owns it, so the viewer here is
+  // someone with no owned tiles, where every "C1"/"C2" label always shows
+  // as plain text — the right vantage point for a pure layout-shape check.
+  const stranger = new CookieJar();
+  const page = await pageText(stranger, code);
 
   expect(countTotalTiles(page)).toBe(64);
   expect(countCells(page, "HQ1")).toBe(1);

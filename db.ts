@@ -658,10 +658,12 @@ export interface Tile {
   ownerCountryId: number | null;
 }
 
+export type BuildingType = "headquarters" | "resource";
+
 export interface Building {
   tileId: number;
   countryId: number;
-  type: string;
+  type: BuildingType;
   row: number;
   col: number;
 }
@@ -705,9 +707,95 @@ export function getWorldForCampaign(campaignId: number): WorldState {
     buildings: buildingRows.map((r) => ({
       tileId: r.tile_id,
       countryId: r.country_id,
-      type: r.type,
+      type: r.type as BuildingType,
       row: r.row,
       col: r.col,
     })),
   };
+}
+
+// --- Slice 5: resource-building construction --------------------------------
+// No schema change: the v3 `buildings` table already stores (tile_id,
+// country_id, type) with UNIQUE(tile_id), which is everything one more
+// building type needs. Resource balance/production state belongs to a later
+// slice and isn't represented here.
+
+export type BuildResourceResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason: "not_started" | "not_participant" | "invalid_coordinate" | "not_owned" | "occupied";
+    };
+
+// Authorization is derived entirely server-side: identity -> participant (by
+// campaign_id + identity_id) -> seat -> country (by campaign_id + seat).
+// Nothing about who's asking or which country/tile is targeted comes from
+// the caller except the raw row/col coordinate. All of it is re-checked
+// inside one BEGIN IMMEDIATE transaction, and the final backstop against two
+// concurrent requests landing on the same tile is the existing
+// UNIQUE(tile_id) constraint, not this function's own pre-checks.
+export function buildResourceBuilding(
+  campaignId: number,
+  identityId: number,
+  row: number,
+  col: number,
+): BuildResourceResult {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const campaign = db.prepare("SELECT status FROM campaigns WHERE id = ?").get(campaignId) as
+      | { status: string }
+      | undefined;
+    if (!campaign || campaign.status !== "started") {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "not_started" };
+    }
+
+    const participant = db
+      .prepare("SELECT seat FROM participants WHERE campaign_id = ? AND identity_id = ?")
+      .get(campaignId, identityId) as { seat: number } | undefined;
+    if (!participant) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "not_participant" };
+    }
+
+    if (
+      !Number.isInteger(row) ||
+      !Number.isInteger(col) ||
+      row < 0 ||
+      row >= WORLD_SIZE ||
+      col < 0 ||
+      col >= WORLD_SIZE
+    ) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "invalid_coordinate" };
+    }
+
+    const country = db
+      .prepare("SELECT id FROM countries WHERE campaign_id = ? AND seat = ?")
+      .get(campaignId, participant.seat) as { id: number } | undefined;
+
+    const tile = country
+      ? (db
+          .prepare("SELECT id, owner_country_id FROM tiles WHERE campaign_id = ? AND row = ? AND col = ?")
+          .get(campaignId, row, col) as { id: number; owner_country_id: number | null } | undefined)
+      : undefined;
+
+    if (!country || !tile || tile.owner_country_id !== country.id) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "not_owned" };
+    }
+
+    db.prepare("INSERT INTO buildings (tile_id, country_id, type) VALUES (?, ?, 'resource')").run(
+      tile.id,
+      country.id,
+    );
+    db.exec("COMMIT");
+    return { ok: true };
+  } catch (err) {
+    db.exec("ROLLBACK");
+    if (isUniqueConstraintViolation(err)) {
+      return { ok: false, reason: "occupied" };
+    }
+    throw err;
+  }
 }

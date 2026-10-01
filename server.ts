@@ -6,6 +6,7 @@ import { getCookie, setCookie } from "hono/cookie";
 import type { Context } from "hono";
 import {
   approveCurrentSettings,
+  buildResourceBuilding,
   createCampaign,
   createIdentity,
   findIdentityByTokenHash,
@@ -41,6 +42,9 @@ const pageShell = (title: string, body: string): string => `<!doctype html>
       table.world td { border: 1px solid #999; text-align: center; vertical-align: middle;
         font-size: 0.7rem; padding: 0; aspect-ratio: 1 / 1; }
       table.world td.tile-mine { background: #dbeafe; font-weight: bold; }
+      table.world .build-form { margin: 0; width: 100%; height: 100%; }
+      table.world .build-form button { width: 100%; height: 100%; border: 0; background: #d8f5d8;
+        font-size: 0.85rem; cursor: pointer; }
     </style>
   </head>
   <body>
@@ -113,8 +117,9 @@ ${campaigns
       "Grid Strategy",
       `      <h1>Grid Strategy (working title)</h1>
       <p>This is the Crit 8 foundation: campaigns, anonymous identity,
-      persistence, lobby settings, approval and match start exist. The grid,
-      buildings and resources are not implemented yet.</p>
+      persistence, lobby settings, approval, match start, the fixed 8×8
+      world and headquarters/resource-building construction exist. Resource
+      balances and production are not implemented yet.</p>
       <p><a href="/readme/">About this project</a></p>
 
       <h2>Create campaign</h2>
@@ -153,21 +158,24 @@ const WORLD_SIZE = 8;
 
 // Renders the persisted world exactly as stored — no client-side
 // interpretation of ownership, nothing calculated in the browser. Every
-// cell carries visible text (not colour alone) identifying HQ/country/
-// neutral, for accessibility; the "mine" highlight is a visual-only extra.
-function renderWorldGrid(world: WorldState, selfSeat: number | undefined): string {
+// cell carries visible text (not colour alone) identifying HQ/resource/
+// country/neutral, for accessibility; the "mine" highlight is a visual-only
+// extra. A build control is only ever rendered for an owned, empty tile
+// belonging to selfSeat — authorization is still re-checked server-side by
+// the route this form posts to, this is convenience only.
+function renderWorldGrid(world: WorldState, selfSeat: number | undefined, campaignCode: string): string {
   const seatByCountryId = new Map<number, number>();
   for (const country of world.countries) seatByCountryId.set(country.id, country.seat);
 
   const tileByCoord = new Map<string, { ownerCountryId: number | null }>();
   for (const tile of world.tiles) tileByCoord.set(`${tile.row},${tile.col}`, tile);
 
-  const hqSeatByCoord = new Map<string, number>();
+  const buildingByCoord = new Map<string, { type: string; seat: number | undefined }>();
   for (const building of world.buildings) {
-    if (building.type === "headquarters") {
-      const seat = seatByCountryId.get(building.countryId);
-      if (seat !== undefined) hqSeatByCoord.set(`${building.row},${building.col}`, seat);
-    }
+    buildingByCoord.set(`${building.row},${building.col}`, {
+      type: building.type,
+      seat: seatByCountryId.get(building.countryId),
+    });
   }
 
   let rows = "";
@@ -180,13 +188,15 @@ function renderWorldGrid(world: WorldState, selfSeat: number | undefined): strin
         tile?.ownerCountryId !== null && tile?.ownerCountryId !== undefined
           ? seatByCountryId.get(tile.ownerCountryId)
           : undefined;
-      const isHq = hqSeatByCoord.has(key);
+      const building = buildingByCoord.get(key);
 
       let label: string;
       let description: string;
-      if (isHq && ownerSeat !== undefined) {
-        label = `HQ${ownerSeat}`;
-        description = `row ${row}, column ${col}: headquarters, country ${ownerSeat}`;
+      if (building && building.seat !== undefined) {
+        const kind = building.type === "headquarters" ? "HQ" : "R";
+        const kindDescription = building.type === "headquarters" ? "headquarters" : "resource building";
+        label = `${kind}${building.seat}`;
+        description = `row ${row}, column ${col}: ${kindDescription}, country ${building.seat}`;
       } else if (ownerSeat !== undefined) {
         label = `C${ownerSeat}`;
         description = `row ${row}, column ${col}: owned by country ${ownerSeat}`;
@@ -196,7 +206,17 @@ function renderWorldGrid(world: WorldState, selfSeat: number | undefined): strin
       }
 
       const mine = ownerSeat !== undefined && ownerSeat === selfSeat;
-      rows += `            <td class="tile${mine ? " tile-mine" : ""}" aria-label="${escapeHtml(description)}" title="${escapeHtml(description)}">${escapeHtml(label)}</td>\n`;
+      const buildable = mine && !building;
+
+      const cellContent = buildable
+        ? `<form method="post" action="/c/${encodeURIComponent(campaignCode)}/build" class="build-form">
+              <input type="hidden" name="row" value="${row}" />
+              <input type="hidden" name="col" value="${col}" />
+              <button type="submit" aria-label="Build resource building at row ${row}, column ${col}" title="Build resource building">+</button>
+            </form>`
+        : escapeHtml(label);
+
+      rows += `            <td class="tile${mine ? " tile-mine" : ""}" aria-label="${escapeHtml(description)}" title="${escapeHtml(description)}">${cellContent}</td>\n`;
     }
     rows += "          </tr>\n";
   }
@@ -226,7 +246,7 @@ function renderCampaignPage(c: Context, campaign: Campaign): Response {
       : "<p>You are not a participant.</p>";
 
     const world = getWorldForCampaign(campaign.id);
-    const gridHtml = renderWorldGrid(world, self?.seat);
+    const gridHtml = renderWorldGrid(world, self?.seat, campaign.code);
 
     body = `      <h1>Campaign ${escapeHtml(campaign.code)}</h1>
       <p>Status: started.</p>
@@ -386,6 +406,38 @@ app.post("/c/:code/start", (c) => {
               409,
             ] as const);
     return c.html(pageShell("Cannot start", `      <h1>${escapeHtml(message)}</h1>`), status);
+  }
+
+  return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
+});
+
+app.post("/c/:code/build", async (c) => {
+  const campaign = getCampaignByCode(c.req.param("code"));
+  if (!campaign) return notFoundPage(c);
+
+  const body = await c.req.parseBody();
+  const row = Number(body["row"]);
+  const col = Number(body["col"]);
+
+  if (!Number.isInteger(row) || !Number.isInteger(col)) {
+    return c.html(pageShell("Invalid tile", "      <h1>Invalid tile coordinate</h1>"), 400);
+  }
+
+  const identityId = c.get("identityId");
+  const result = buildResourceBuilding(campaign.id, identityId, row, col);
+
+  if (!result.ok) {
+    const [message, status] =
+      result.reason === "not_started"
+        ? (["Construction is only possible after the match has started.", 409] as const)
+        : result.reason === "not_participant"
+          ? (["Only a participant in this campaign can construct.", 403] as const)
+          : result.reason === "invalid_coordinate"
+            ? (["That tile is outside the 8×8 world.", 400] as const)
+            : result.reason === "not_owned"
+              ? (["You can only build on an empty tile your own country owns.", 403] as const)
+              : (["That tile already has a building.", 409] as const);
+    return c.html(pageShell("Cannot build", `      <h1>${escapeHtml(message)}</h1>`), status);
   }
 
   return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
