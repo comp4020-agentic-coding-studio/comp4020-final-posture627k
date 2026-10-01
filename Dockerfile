@@ -14,9 +14,10 @@ RUN npm install --global pnpm@11.9.0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --prod
 
-COPY server.ts README.md ./
+COPY server.ts db.ts README.md ./
 
 ENV PORT=8080
+ENV DATA_DIR=/data
 EXPOSE 8080
 
 CMD ["node", "server.ts"]
