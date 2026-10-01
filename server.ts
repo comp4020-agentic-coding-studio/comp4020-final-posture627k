@@ -5,14 +5,20 @@ import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
 import type { Context } from "hono";
 import {
+  approveCurrentSettings,
   createCampaign,
   createIdentity,
   findIdentityByTokenHash,
   getCampaignByCode,
-  getParticipantsForCampaign,
+  getLobbyStatus,
   hashToken,
   joinCampaign,
   listCampaignsForIdentity,
+  setResourcePreset,
+  startCampaign,
+  type Campaign,
+  type Participant,
+  type ResourcePreset,
 } from "./db.ts";
 
 // Co-located with this file so it resolves the same way locally and in the
@@ -98,9 +104,9 @@ ${campaigns
     pageShell(
       "Grid Strategy",
       `      <h1>Grid Strategy (working title)</h1>
-      <p>This is the Crit 8 foundation: campaigns, anonymous identity and
-      persistence exist. Lobby settings, approvals, the grid, buildings and
-      resources are not implemented yet.</p>
+      <p>This is the Crit 8 foundation: campaigns, anonymous identity,
+      persistence, lobby settings, approval and match start exist. The grid,
+      buildings and resources are not implemented yet.</p>
       <p><a href="/readme/">About this project</a></p>
 
       <h2>Create campaign</h2>
@@ -120,47 +126,111 @@ app.post("/campaigns", (c) => {
   return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
 });
 
-app.get("/c/:code", (c) => {
-  const code = c.req.param("code");
-  const campaign = getCampaignByCode(code);
-  if (!campaign) {
-    return c.html(pageShell("Campaign not found", "      <h1>Campaign not found</h1>"), 404);
-  }
+function notFoundPage(c: Context) {
+  return c.html(pageShell("Campaign not found", "      <h1>Campaign not found</h1>"), 404);
+}
 
+const PRESET_LABELS: Record<ResourcePreset, string> = {
+  standard: "Standard (10 resources / building / 10s interval)",
+  rapid: "Rapid (20 resources / building / 10s interval)",
+};
+
+function renderSeatLine(seatNumber: 1 | 2, participant: Participant | undefined, approvedSeats: number[]): string {
+  if (!participant) return `<p>Seat ${seatNumber}: open</p>`;
+  const approved = approvedSeats.includes(seatNumber);
+  return `<p>Seat ${seatNumber}: occupied${participant.isHost ? " (host)" : ""} — ${approved ? "approved" : "not approved"} current settings</p>`;
+}
+
+function renderCampaignPage(c: Context, campaign: Campaign): Response {
   const identityId = c.get("identityId");
-  const participants = getParticipantsForCampaign(campaign.id);
+  const { participants, approvedSeats, ready } = getLobbyStatus(campaign);
   const self = participants.find((p) => p.identityId === identityId);
   const seat1 = participants.find((p) => p.seat === 1);
   const seat2 = participants.find((p) => p.seat === 2);
   const shareUrl = new URL(`/c/${encodeURIComponent(campaign.code)}`, c.req.url).toString();
+  const presetLabel = PRESET_LABELS[campaign.resourcePreset];
+  const started = campaign.status === "started";
 
-  const selfSection = self
-    ? `<p>You are seat ${self.seat}${self.isHost ? " (configuration-role host)" : ""}.</p>`
-    : seat2
-      ? "<p>This campaign is full. You are not a participant.</p>"
-      : `      <form method="post" action="/c/${encodeURIComponent(campaign.code)}/join">
+  let body: string;
+
+  if (started) {
+    const selfLine = self
+      ? `<p>You are seat ${self.seat}${self.isHost ? " (configuration-role host)" : ""}.</p>`
+      : "<p>You are not a participant.</p>";
+
+    body = `      <h1>Campaign ${escapeHtml(campaign.code)}</h1>
+      <p>Status: started.</p>
+      <p>Resource-production preset (locked): ${escapeHtml(presetLabel)}</p>
+      <p>Settings are locked and cannot change after start.</p>
+      <p>Seat 1: ${seat1 ? `occupied${seat1.isHost ? " (host)" : ""}` : "open"}</p>
+      <p>Seat 2: ${seat2 ? `occupied${seat2.isHost ? " (host)" : ""}` : "open"}</p>
+      ${selfLine}`;
+  } else {
+    const selfSection = self
+      ? `<p>You are seat ${self.seat}${self.isHost ? " (configuration-role host)" : ""}.</p>`
+      : seat2
+        ? "<p>This campaign is full. You are not a participant.</p>"
+        : `      <form method="post" action="/c/${encodeURIComponent(campaign.code)}/join">
         <button type="submit">Join campaign</button>
       </form>`;
 
-  return c.html(
-    pageShell(
-      `Campaign ${campaign.code}`,
-      `      <h1>Campaign ${escapeHtml(campaign.code)}</h1>
-      <p>Status: pre-start / foundation state.</p>
+    const approveControls = self
+      ? approvedSeats.includes(self.seat)
+        ? `<p>You have approved settings revision ${campaign.settingsRevision}.</p>`
+        : `      <form method="post" action="/c/${encodeURIComponent(campaign.code)}/approve">
+        <button type="submit">Approve current settings</button>
+      </form>`
+      : "";
+
+    const hostControls = self?.isHost
+      ? `      <h2>Host: resource-production preset</h2>
+      <form method="post" action="/c/${encodeURIComponent(campaign.code)}/settings">
+        <label>
+          <input type="radio" name="preset" value="standard" ${campaign.resourcePreset === "standard" ? "checked" : ""} />
+          ${escapeHtml(PRESET_LABELS.standard)}
+        </label><br />
+        <label>
+          <input type="radio" name="preset" value="rapid" ${campaign.resourcePreset === "rapid" ? "checked" : ""} />
+          ${escapeHtml(PRESET_LABELS.rapid)}
+        </label><br />
+        <button type="submit">Update setting</button>
+      </form>
+
+      <h2>Host: start match</h2>
+      ${
+        ready
+          ? `<form method="post" action="/c/${encodeURIComponent(campaign.code)}/start">
+        <button type="submit">Start match</button>
+      </form>`
+          : "<p>Not ready: both seats must be filled and both participants must approve the current settings.</p>"
+      }`
+      : "";
+
+    body = `      <h1>Campaign ${escapeHtml(campaign.code)}</h1>
+      <p>Status: pre-start (configuring).</p>
       <p>Shareable URL: <code>${escapeHtml(shareUrl)}</code></p>
-      <p>Seat 1: ${seat1 ? "occupied" : "open"}</p>
-      <p>Seat 2: ${seat2 ? "occupied" : "open"}</p>
-      ${selfSection}`,
-    ),
-  );
+      <p>Resource-production preset: ${escapeHtml(presetLabel)}</p>
+      <p>Settings revision: ${campaign.settingsRevision}</p>
+      ${renderSeatLine(1, seat1, approvedSeats)}
+      ${renderSeatLine(2, seat2, approvedSeats)}
+      <p>Ready to start: ${ready ? "yes" : "no"}</p>
+      ${selfSection}
+      ${approveControls}
+      ${hostControls}`;
+  }
+
+  return c.html(pageShell(`Campaign ${campaign.code}`, body));
+}
+
+app.get("/c/:code", (c) => {
+  const campaign = getCampaignByCode(c.req.param("code"));
+  if (!campaign) return notFoundPage(c);
+  return renderCampaignPage(c, campaign);
 });
 
 app.post("/c/:code/join", (c) => {
-  const code = c.req.param("code");
-  const campaign = getCampaignByCode(code);
-  if (!campaign) {
-    return c.html(pageShell("Campaign not found", "      <h1>Campaign not found</h1>"), 404);
-  }
+  const campaign = getCampaignByCode(c.req.param("code"));
+  if (!campaign) return notFoundPage(c);
 
   const identityId = c.get("identityId");
   const result = joinCampaign(campaign.id, identityId);
@@ -174,6 +244,77 @@ app.post("/c/:code/join", (c) => {
       ),
       409,
     );
+  }
+
+  return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
+});
+
+app.post("/c/:code/settings", async (c) => {
+  const campaign = getCampaignByCode(c.req.param("code"));
+  if (!campaign) return notFoundPage(c);
+
+  const body = await c.req.parseBody();
+  const submitted = body["preset"];
+  const preset: ResourcePreset | undefined =
+    submitted === "standard" || submitted === "rapid" ? submitted : undefined;
+
+  if (!preset) {
+    return c.html(
+      pageShell("Invalid setting", "      <h1>Invalid resource-production preset</h1>"),
+      400,
+    );
+  }
+
+  const identityId = c.get("identityId");
+  const result = setResourcePreset(campaign.id, identityId, preset);
+
+  if (!result.ok) {
+    const [message, status] =
+      result.reason === "not_host"
+        ? (["Only the host can change settings.", 403] as const)
+        : (["Settings cannot change after the match has started.", 409] as const);
+    return c.html(pageShell("Cannot change settings", `      <h1>${escapeHtml(message)}</h1>`), status);
+  }
+
+  return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
+});
+
+app.post("/c/:code/approve", (c) => {
+  const campaign = getCampaignByCode(c.req.param("code"));
+  if (!campaign) return notFoundPage(c);
+
+  const identityId = c.get("identityId");
+  const result = approveCurrentSettings(campaign.id, identityId);
+
+  if (!result.ok) {
+    const [message, status] =
+      result.reason === "not_participant"
+        ? (["Only a participant in this campaign can approve.", 403] as const)
+        : (["Approval is only possible before the match starts.", 409] as const);
+    return c.html(pageShell("Cannot approve", `      <h1>${escapeHtml(message)}</h1>`), status);
+  }
+
+  return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
+});
+
+app.post("/c/:code/start", (c) => {
+  const campaign = getCampaignByCode(c.req.param("code"));
+  if (!campaign) return notFoundPage(c);
+
+  const identityId = c.get("identityId");
+  const result = startCampaign(campaign.id, identityId);
+
+  if (!result.ok) {
+    const [message, status] =
+      result.reason === "not_host"
+        ? (["Only the host can start the match.", 403] as const)
+        : result.reason === "already_started"
+          ? (["This match has already started.", 409] as const)
+          : ([
+              "The match cannot start yet: both seats must be filled and both participants must approve the current settings.",
+              409,
+            ] as const);
+    return c.html(pageShell("Cannot start", `      <h1>${escapeHtml(message)}</h1>`), status);
   }
 
   return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
