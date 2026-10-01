@@ -16,6 +16,7 @@ import {
   hashToken,
   joinCampaign,
   listCampaignsForIdentity,
+  settleAndGetOwnCountryResources,
   setResourcePreset,
   startCampaign,
   type Campaign,
@@ -118,8 +119,9 @@ ${campaigns
       `      <h1>Grid Strategy (working title)</h1>
       <p>This is the Crit 8 foundation: campaigns, anonymous identity,
       persistence, lobby settings, approval, match start, the fixed 8×8
-      world and headquarters/resource-building construction exist. Resource
-      balances and production are not implemented yet.</p>
+      world, headquarters/resource-building construction, and server-side
+      resource production all exist. Armies, combat and victory conditions
+      are not implemented yet.</p>
       <p><a href="/readme/">About this project</a></p>
 
       <h2>Create campaign</h2>
@@ -245,6 +247,19 @@ function renderCampaignPage(c: Context, campaign: Campaign): Response {
       ? `<p>You are seat ${self.seat}${self.isHost ? " (configuration-role host)" : ""}.</p>`
       : "<p>You are not a participant.</p>";
 
+    // Settlement only ever runs for the viewer's own country, and only when
+    // they actually are a participant — a non-participant never triggers or
+    // sees anyone's balance here.
+    const resourcesLine = self
+      ? (() => {
+          const settlement = settleAndGetOwnCountryResources(campaign.id, identityId);
+          return settlement.ok
+            ? `<p>Resources: ${settlement.balance}</p>
+      <p>Resource buildings produce every 10 seconds.</p>`
+            : "";
+        })()
+      : "";
+
     const world = getWorldForCampaign(campaign.id);
     const gridHtml = renderWorldGrid(world, self?.seat, campaign.code);
 
@@ -255,6 +270,7 @@ function renderCampaignPage(c: Context, campaign: Campaign): Response {
       <p>Seat 1: ${seat1 ? `occupied${seat1.isHost ? " (host)" : ""}` : "open"}</p>
       <p>Seat 2: ${seat2 ? `occupied${seat2.isHost ? " (host)" : ""}` : "open"}</p>
       ${selfLine}
+      ${resourcesLine}
 ${gridHtml}`;
   } else {
     const selfSection = self

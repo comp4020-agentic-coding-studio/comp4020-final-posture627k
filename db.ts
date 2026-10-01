@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 // SCHEMA_VERSION, migrating an existing older database in place rather than
 // recreating it. A database from a newer, unknown version fails loudly
 // instead of being silently reinterpreted.
-const SCHEMA_VERSION = 3;
+const SCHEMA_VERSION = 4;
 
 // The fixed Crit 8 world layout. Defined here, ahead of the schema/migration
 // code below, because the v2 -> v3 migration can call generateWorld() (to
@@ -176,6 +176,44 @@ if (currentVersion < 3) {
       db.exec("ROLLBACK");
       throw err;
     }
+  }
+}
+
+// Migration: schema version 3 -> 4 (country pooled resource balance, per-
+// resource-building settlement cursor). Same once-only guard as earlier
+// blocks.
+//
+// A v3 database can already contain resource buildings (Slice 5 predates
+// this column). Backfilling their cursor from migration time would silently
+// grant them free production for all the time between their real
+// construction and whenever this migration happens to run. Instead each
+// one's cursor is seeded from its own `created_at`, so it starts producing
+// exactly where it would have if this column had existed when it was built.
+// Headquarters are untouched and stay NULL (ALTER TABLE ADD COLUMN with no
+// DEFAULT leaves existing rows NULL; generateWorld never sets this column
+// for headquarters either).
+if (currentVersion < 4) {
+  db.exec(
+    "ALTER TABLE countries ADD COLUMN resource_balance INTEGER NOT NULL DEFAULT 0 CHECK (resource_balance >= 0)",
+  );
+  db.exec(
+    "ALTER TABLE buildings ADD COLUMN settlement_cursor_ms INTEGER CHECK (settlement_cursor_ms IS NULL OR settlement_cursor_ms >= 0)",
+  );
+
+  const existingResourceBuildings = db
+    .prepare("SELECT id, created_at FROM buildings WHERE type = 'resource'")
+    .all() as { id: number; created_at: string }[];
+
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const seedCursor = db.prepare("UPDATE buildings SET settlement_cursor_ms = ? WHERE id = ?");
+    for (const building of existingResourceBuildings) {
+      seedCursor.run(new Date(building.created_at).getTime(), building.id);
+    }
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
   }
 }
 
@@ -650,6 +688,7 @@ export interface Country {
   id: number;
   campaignId: number;
   seat: number;
+  resourceBalance: number;
 }
 
 export interface Tile {
@@ -666,6 +705,7 @@ export interface Building {
   type: BuildingType;
   row: number;
   col: number;
+  settlementCursorMs: number | null;
 }
 
 export interface WorldState {
@@ -679,8 +719,10 @@ export interface WorldState {
 // (pre-start) comes back with all three lists empty.
 export function getWorldForCampaign(campaignId: number): WorldState {
   const countryRows = db
-    .prepare("SELECT id, campaign_id, seat FROM countries WHERE campaign_id = ? ORDER BY seat")
-    .all(campaignId) as { id: number; campaign_id: number; seat: number }[];
+    .prepare(
+      "SELECT id, campaign_id, seat, resource_balance FROM countries WHERE campaign_id = ? ORDER BY seat",
+    )
+    .all(campaignId) as { id: number; campaign_id: number; seat: number; resource_balance: number }[];
 
   const tileRows = db
     .prepare("SELECT row, col, owner_country_id FROM tiles WHERE campaign_id = ? ORDER BY row, col")
@@ -688,7 +730,8 @@ export function getWorldForCampaign(campaignId: number): WorldState {
 
   const buildingRows = db
     .prepare(
-      `SELECT b.tile_id AS tile_id, b.country_id AS country_id, b.type AS type, t.row AS row, t.col AS col
+      `SELECT b.tile_id AS tile_id, b.country_id AS country_id, b.type AS type,
+              b.settlement_cursor_ms AS settlement_cursor_ms, t.row AS row, t.col AS col
        FROM buildings b
        JOIN tiles t ON t.id = b.tile_id
        WHERE t.campaign_id = ?`,
@@ -697,12 +740,18 @@ export function getWorldForCampaign(campaignId: number): WorldState {
     tile_id: number;
     country_id: number;
     type: string;
+    settlement_cursor_ms: number | null;
     row: number;
     col: number;
   }[];
 
   return {
-    countries: countryRows.map((r) => ({ id: r.id, campaignId: r.campaign_id, seat: r.seat })),
+    countries: countryRows.map((r) => ({
+      id: r.id,
+      campaignId: r.campaign_id,
+      seat: r.seat,
+      resourceBalance: r.resource_balance,
+    })),
     tiles: tileRows.map((r) => ({ row: r.row, col: r.col, ownerCountryId: r.owner_country_id })),
     buildings: buildingRows.map((r) => ({
       tileId: r.tile_id,
@@ -710,6 +759,7 @@ export function getWorldForCampaign(campaignId: number): WorldState {
       type: r.type as BuildingType,
       row: r.row,
       col: r.col,
+      settlementCursorMs: r.settlement_cursor_ms,
     })),
   };
 }
@@ -785,10 +835,12 @@ export function buildResourceBuilding(
       return { ok: false, reason: "not_owned" };
     }
 
-    db.prepare("INSERT INTO buildings (tile_id, country_id, type) VALUES (?, ?, 'resource')").run(
-      tile.id,
-      country.id,
-    );
+    // One authoritative `now`, captured here and nowhere else, becomes the
+    // building's production start — never a client-submitted timestamp, and
+    // atomic with the insert itself (same transaction).
+    db.prepare(
+      "INSERT INTO buildings (tile_id, country_id, type, settlement_cursor_ms) VALUES (?, ?, 'resource', ?)",
+    ).run(tile.id, country.id, Date.now());
     db.exec("COMMIT");
     return { ok: true };
   } catch (err) {
@@ -796,6 +848,138 @@ export function buildResourceBuilding(
     if (isUniqueConstraintViolation(err)) {
       return { ok: false, reason: "occupied" };
     }
+    throw err;
+  }
+}
+
+// --- Slice 6: resource settlement --------------------------------------------
+// No continuously-running timer anywhere: production is reconstructed, on
+// read, from each resource building's own persisted settlement_cursor_ms.
+// The frozen campaign resource_preset (immutable since Slice 3's start
+// transaction) is the sole source of the production rate — nothing mutable
+// is duplicated onto each building.
+
+const PRODUCTION_INTERVAL_MS = 10_000;
+
+const PRODUCTION_RATE_BY_PRESET: Record<ResourcePreset, number> = {
+  standard: 10,
+  rapid: 20,
+};
+
+// Settles every resource building owned by `countryId` up to `now`, crediting
+// only complete PRODUCTION_INTERVAL_MS intervals, then adds the total to that
+// country's pooled balance. Must be called from inside an already-open
+// BEGIN IMMEDIATE transaction (like generateWorld) — it never opens or closes
+// one itself, so both of this function's callers below can keep settlement
+// atomic with whatever else they're doing in the same transaction.
+//
+// A cursor is only ever advanced by whole completed intervals, never set to
+// `now` — this is what preserves an unfinished remainder for next time, and
+// it's also what makes a clock that has gone backwards harmless: if `now` is
+// before (or barely after) the stored cursor, elapsed is negative or under
+// one interval, zero intervals are credited, and the cursor is left exactly
+// where it was. A cursor can only move forward, and a balance can only grow.
+function creditCountryProduction(countryId: number, rate: number, now: number): number {
+  const buildings = db
+    .prepare("SELECT id, settlement_cursor_ms FROM buildings WHERE country_id = ? AND type = 'resource'")
+    .all(countryId) as { id: number; settlement_cursor_ms: number | null }[];
+
+  const advanceCursor = db.prepare("UPDATE buildings SET settlement_cursor_ms = ? WHERE id = ?");
+  let totalCredit = 0;
+
+  for (const building of buildings) {
+    const cursor = building.settlement_cursor_ms;
+    if (cursor === null) continue; // defensive: resource buildings always have one
+
+    const elapsed = now - cursor;
+    if (elapsed < PRODUCTION_INTERVAL_MS) continue;
+
+    const completeIntervals = Math.floor(elapsed / PRODUCTION_INTERVAL_MS);
+    const newCursor = cursor + completeIntervals * PRODUCTION_INTERVAL_MS;
+    totalCredit += completeIntervals * rate;
+    advanceCursor.run(newCursor, building.id);
+  }
+
+  if (totalCredit > 0) {
+    db.prepare("UPDATE countries SET resource_balance = resource_balance + ? WHERE id = ?").run(
+      totalCredit,
+      countryId,
+    );
+  }
+
+  const row = db.prepare("SELECT resource_balance FROM countries WHERE id = ?").get(countryId) as {
+    resource_balance: number;
+  };
+  return row.resource_balance;
+}
+
+// Exported only as an internal persistence-layer testing hook: it lets tests
+// supply a controlled `now` instead of sleeping for real seconds. No HTTP
+// route calls this — server.ts only ever calls settleAndGetOwnCountryResources
+// below, which always uses the real server clock. There is no "set time"
+// endpoint anywhere.
+export function settleCountryProductionAt(countryId: number, preset: ResourcePreset, now: number): number {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const balance = creditCountryProduction(countryId, PRODUCTION_RATE_BY_PRESET[preset], now);
+    db.exec("COMMIT");
+    return balance;
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+export type SettleResourcesResult =
+  | { ok: true; balance: number; seat: number }
+  | { ok: false; reason: "not_started" | "not_participant" };
+
+// The only production entry point reachable over HTTP. Authorization is
+// identity -> participant (by campaign_id + identity_id) -> seat -> country,
+// exactly like construction in Slice 5 — the caller never supplies a country
+// id, and this only ever settles and returns the caller's OWN country, never
+// the opponent's. Time is always Date.now(), captured once for this whole
+// settlement.
+export function settleAndGetOwnCountryResources(
+  campaignId: number,
+  identityId: number,
+): SettleResourcesResult {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const campaign = db
+      .prepare("SELECT status, resource_preset FROM campaigns WHERE id = ?")
+      .get(campaignId) as { status: string; resource_preset: string } | undefined;
+
+    if (!campaign || campaign.status !== "started") {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "not_started" };
+    }
+
+    const participant = db
+      .prepare("SELECT seat FROM participants WHERE campaign_id = ? AND identity_id = ?")
+      .get(campaignId, identityId) as { seat: number } | undefined;
+
+    if (!participant) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "not_participant" };
+    }
+
+    const country = db
+      .prepare("SELECT id FROM countries WHERE campaign_id = ? AND seat = ?")
+      .get(campaignId, participant.seat) as { id: number } | undefined;
+
+    if (!country) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "not_participant" };
+    }
+
+    const rate = PRODUCTION_RATE_BY_PRESET[campaign.resource_preset as ResourcePreset];
+    const balance = creditCountryProduction(country.id, rate, Date.now());
+
+    db.exec("COMMIT");
+    return { ok: true, balance, seat: participant.seat };
+  } catch (err) {
+    db.exec("ROLLBACK");
     throw err;
   }
 }
