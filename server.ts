@@ -11,6 +11,7 @@ import {
   findIdentityByTokenHash,
   getCampaignByCode,
   getLobbyStatus,
+  getWorldForCampaign,
   hashToken,
   joinCampaign,
   listCampaignsForIdentity,
@@ -19,6 +20,7 @@ import {
   type Campaign,
   type Participant,
   type ResourcePreset,
+  type WorldState,
 } from "./db.ts";
 
 // Co-located with this file so it resolves the same way locally and in the
@@ -34,6 +36,12 @@ const pageShell = (title: string, body: string): string => `<!doctype html>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(title)}</title>
+    <style>
+      table.world { border-collapse: collapse; width: 100%; max-width: 22rem; margin: 0.5rem 0; }
+      table.world td { border: 1px solid #999; text-align: center; vertical-align: middle;
+        font-size: 0.7rem; padding: 0; aspect-ratio: 1 / 1; }
+      table.world td.tile-mine { background: #dbeafe; font-weight: bold; }
+    </style>
   </head>
   <body>
     <main>
@@ -141,6 +149,65 @@ function renderSeatLine(seatNumber: 1 | 2, participant: Participant | undefined,
   return `<p>Seat ${seatNumber}: occupied${participant.isHost ? " (host)" : ""} — ${approved ? "approved" : "not approved"} current settings</p>`;
 }
 
+const WORLD_SIZE = 8;
+
+// Renders the persisted world exactly as stored — no client-side
+// interpretation of ownership, nothing calculated in the browser. Every
+// cell carries visible text (not colour alone) identifying HQ/country/
+// neutral, for accessibility; the "mine" highlight is a visual-only extra.
+function renderWorldGrid(world: WorldState, selfSeat: number | undefined): string {
+  const seatByCountryId = new Map<number, number>();
+  for (const country of world.countries) seatByCountryId.set(country.id, country.seat);
+
+  const tileByCoord = new Map<string, { ownerCountryId: number | null }>();
+  for (const tile of world.tiles) tileByCoord.set(`${tile.row},${tile.col}`, tile);
+
+  const hqSeatByCoord = new Map<string, number>();
+  for (const building of world.buildings) {
+    if (building.type === "headquarters") {
+      const seat = seatByCountryId.get(building.countryId);
+      if (seat !== undefined) hqSeatByCoord.set(`${building.row},${building.col}`, seat);
+    }
+  }
+
+  let rows = "";
+  for (let row = 0; row < WORLD_SIZE; row++) {
+    rows += "          <tr>\n";
+    for (let col = 0; col < WORLD_SIZE; col++) {
+      const key = `${row},${col}`;
+      const tile = tileByCoord.get(key);
+      const ownerSeat =
+        tile?.ownerCountryId !== null && tile?.ownerCountryId !== undefined
+          ? seatByCountryId.get(tile.ownerCountryId)
+          : undefined;
+      const isHq = hqSeatByCoord.has(key);
+
+      let label: string;
+      let description: string;
+      if (isHq && ownerSeat !== undefined) {
+        label = `HQ${ownerSeat}`;
+        description = `row ${row}, column ${col}: headquarters, country ${ownerSeat}`;
+      } else if (ownerSeat !== undefined) {
+        label = `C${ownerSeat}`;
+        description = `row ${row}, column ${col}: owned by country ${ownerSeat}`;
+      } else {
+        label = "·";
+        description = `row ${row}, column ${col}: neutral`;
+      }
+
+      const mine = ownerSeat !== undefined && ownerSeat === selfSeat;
+      rows += `            <td class="tile${mine ? " tile-mine" : ""}" aria-label="${escapeHtml(description)}" title="${escapeHtml(description)}">${escapeHtml(label)}</td>\n`;
+    }
+    rows += "          </tr>\n";
+  }
+
+  return `      <table class="world">
+        <caption>Match world (8×8)</caption>
+        <tbody>
+${rows}        </tbody>
+      </table>`;
+}
+
 function renderCampaignPage(c: Context, campaign: Campaign): Response {
   const identityId = c.get("identityId");
   const { participants, approvedSeats, ready } = getLobbyStatus(campaign);
@@ -158,13 +225,17 @@ function renderCampaignPage(c: Context, campaign: Campaign): Response {
       ? `<p>You are seat ${self.seat}${self.isHost ? " (configuration-role host)" : ""}.</p>`
       : "<p>You are not a participant.</p>";
 
+    const world = getWorldForCampaign(campaign.id);
+    const gridHtml = renderWorldGrid(world, self?.seat);
+
     body = `      <h1>Campaign ${escapeHtml(campaign.code)}</h1>
       <p>Status: started.</p>
       <p>Resource-production preset (locked): ${escapeHtml(presetLabel)}</p>
       <p>Settings are locked and cannot change after start.</p>
       <p>Seat 1: ${seat1 ? `occupied${seat1.isHost ? " (host)" : ""}` : "open"}</p>
       <p>Seat 2: ${seat2 ? `occupied${seat2.isHost ? " (host)" : ""}` : "open"}</p>
-      ${selfLine}`;
+      ${selfLine}
+${gridHtml}`;
   } else {
     const selfSection = self
       ? `<p>You are seat ${self.seat}${self.isHost ? " (configuration-role host)" : ""}.</p>`

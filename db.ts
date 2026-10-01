@@ -8,7 +8,45 @@ import { DatabaseSync } from "node:sqlite";
 // SCHEMA_VERSION, migrating an existing older database in place rather than
 // recreating it. A database from a newer, unknown version fails loudly
 // instead of being silently reinterpreted.
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
+
+// The fixed Crit 8 world layout. Defined here, ahead of the schema/migration
+// code below, because the v2 -> v3 migration can call generateWorld() (to
+// backfill already-started campaigns) while the module is still executing
+// top-to-bottom — a `const` isn't usable before its own initializer has run,
+// even inside a hoisted function, so this can't live further down the file
+// near generateWorld's definition without hitting that temporal-dead-zone
+// error the moment a backfill is actually needed.
+const WORLD_SIZE = 8;
+
+interface StartingZone {
+  seat: 1 | 2;
+  tiles: readonly (readonly [number, number])[];
+  headquarters: readonly [number, number];
+}
+
+const STARTING_ZONES: readonly StartingZone[] = [
+  {
+    seat: 1,
+    tiles: [
+      [0, 0],
+      [0, 1],
+      [1, 0],
+      [1, 1],
+    ],
+    headquarters: [0, 0],
+  },
+  {
+    seat: 2,
+    tiles: [
+      [6, 6],
+      [6, 7],
+      [7, 6],
+      [7, 7],
+    ],
+    headquarters: [7, 7],
+  },
+];
 
 // The container/Fly deployment sets DATA_DIR=/data (the mounted volume).
 // Locally, without DATA_DIR set, fall back to a repo-local directory so
@@ -82,6 +120,63 @@ if (currentVersion < 2) {
       UNIQUE (participant_id, revision)
     );
   `);
+}
+
+// Migration: schema version 2 -> 3 (fixed 8x8 world: countries, tiles,
+// headquarters). Same once-only guard as the v1 -> v2 block above.
+//
+// A v2 database can already contain a `started` campaign, since Slice 3
+// could start a campaign before these tables existed. Such a campaign is
+// backfilled with the same deterministic world it would have received had
+// it started under this schema — without touching its identities,
+// participants, host role, preset, revision, approvals, or its own
+// created_at/status. A `configuring` v2 campaign is left alone here; it
+// gets a world only if and when it later actually starts.
+if (currentVersion < 3) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS countries (
+      id INTEGER PRIMARY KEY,
+      campaign_id INTEGER NOT NULL REFERENCES campaigns(id),
+      seat INTEGER NOT NULL CHECK (seat IN (1, 2)),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      UNIQUE (campaign_id, seat)
+    );
+
+    CREATE TABLE IF NOT EXISTS tiles (
+      id INTEGER PRIMARY KEY,
+      campaign_id INTEGER NOT NULL REFERENCES campaigns(id),
+      row INTEGER NOT NULL CHECK (row BETWEEN 0 AND 7),
+      col INTEGER NOT NULL CHECK (col BETWEEN 0 AND 7),
+      owner_country_id INTEGER REFERENCES countries(id),
+      UNIQUE (campaign_id, row, col)
+    );
+
+    CREATE TABLE IF NOT EXISTS buildings (
+      id INTEGER PRIMARY KEY,
+      tile_id INTEGER NOT NULL UNIQUE REFERENCES tiles(id),
+      country_id INTEGER NOT NULL REFERENCES countries(id),
+      type TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS one_headquarters_per_country
+      ON buildings(country_id)
+      WHERE type = 'headquarters';
+  `);
+
+  const alreadyStarted = db.prepare("SELECT id FROM campaigns WHERE status = 'started'").all() as {
+    id: number;
+  }[];
+  for (const { id } of alreadyStarted) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      generateWorld(id);
+      db.exec("COMMIT");
+    } catch (err) {
+      db.exec("ROLLBACK");
+      throw err;
+    }
+  }
 }
 
 db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
@@ -485,6 +580,8 @@ export function startCampaign(campaignId: number, identityId: number): StartResu
       return { ok: false, reason: "not_ready" };
     }
 
+    generateWorld(campaignId);
+
     db.prepare("UPDATE campaigns SET status = 'started' WHERE id = ? AND status = 'configuring'").run(
       campaignId,
     );
@@ -494,4 +591,123 @@ export function startCampaign(campaignId: number, identityId: number): StartResu
     db.exec("ROLLBACK");
     throw err;
   }
+}
+
+// --- Slice 4: fixed world, countries, tiles, headquarters -------------------
+// (WORLD_SIZE and STARTING_ZONES are defined near the top of this file,
+// ahead of the schema/migration code that can call generateWorld() early.)
+
+// Called only from inside an already-open BEGIN IMMEDIATE transaction —
+// either startCampaign's own transaction, or the v2 -> v3 migration's
+// per-campaign backfill transaction. It never opens or closes a transaction
+// itself. A `function` declaration (not a const arrow function) so it's
+// hoisted and callable from the migration code above, which runs earlier in
+// this file's top-level execution than this definition appears.
+function generateWorld(campaignId: number): void {
+  const countryIdBySeat = new Map<number, number>();
+  const insertCountry = db.prepare("INSERT INTO countries (campaign_id, seat) VALUES (?, ?)");
+  for (const zone of STARTING_ZONES) {
+    const info = insertCountry.run(campaignId, zone.seat);
+    countryIdBySeat.set(zone.seat, Number(info.lastInsertRowid));
+  }
+
+  const ownerSeatByCoord = new Map<string, number>();
+  for (const zone of STARTING_ZONES) {
+    for (const [row, col] of zone.tiles) {
+      ownerSeatByCoord.set(`${row},${col}`, zone.seat);
+    }
+  }
+
+  const insertTile = db.prepare(
+    "INSERT INTO tiles (campaign_id, row, col, owner_country_id) VALUES (?, ?, ?, ?)",
+  );
+  const tileIdByCoord = new Map<string, number>();
+  for (let row = 0; row < WORLD_SIZE; row++) {
+    for (let col = 0; col < WORLD_SIZE; col++) {
+      const key = `${row},${col}`;
+      const ownerSeat = ownerSeatByCoord.get(key);
+      const ownerCountryId = ownerSeat !== undefined ? (countryIdBySeat.get(ownerSeat) ?? null) : null;
+      const info = insertTile.run(campaignId, row, col, ownerCountryId);
+      tileIdByCoord.set(key, Number(info.lastInsertRowid));
+    }
+  }
+
+  const insertHeadquarters = db.prepare(
+    "INSERT INTO buildings (tile_id, country_id, type) VALUES (?, ?, 'headquarters')",
+  );
+  for (const zone of STARTING_ZONES) {
+    const [hqRow, hqCol] = zone.headquarters;
+    const tileId = tileIdByCoord.get(`${hqRow},${hqCol}`);
+    const countryId = countryIdBySeat.get(zone.seat);
+    if (tileId === undefined || countryId === undefined) {
+      throw new Error("world generation produced an incomplete layout");
+    }
+    insertHeadquarters.run(tileId, countryId);
+  }
+}
+
+export interface Country {
+  id: number;
+  campaignId: number;
+  seat: number;
+}
+
+export interface Tile {
+  row: number;
+  col: number;
+  ownerCountryId: number | null;
+}
+
+export interface Building {
+  tileId: number;
+  countryId: number;
+  type: string;
+  row: number;
+  col: number;
+}
+
+export interface WorldState {
+  countries: Country[];
+  tiles: Tile[];
+  buildings: Building[];
+}
+
+// Returns the persisted world exactly as it exists right now — there is no
+// cached or in-memory "world" anywhere. A campaign with no world yet
+// (pre-start) comes back with all three lists empty.
+export function getWorldForCampaign(campaignId: number): WorldState {
+  const countryRows = db
+    .prepare("SELECT id, campaign_id, seat FROM countries WHERE campaign_id = ? ORDER BY seat")
+    .all(campaignId) as { id: number; campaign_id: number; seat: number }[];
+
+  const tileRows = db
+    .prepare("SELECT row, col, owner_country_id FROM tiles WHERE campaign_id = ? ORDER BY row, col")
+    .all(campaignId) as { row: number; col: number; owner_country_id: number | null }[];
+
+  const buildingRows = db
+    .prepare(
+      `SELECT b.tile_id AS tile_id, b.country_id AS country_id, b.type AS type, t.row AS row, t.col AS col
+       FROM buildings b
+       JOIN tiles t ON t.id = b.tile_id
+       WHERE t.campaign_id = ?`,
+    )
+    .all(campaignId) as {
+    tile_id: number;
+    country_id: number;
+    type: string;
+    row: number;
+    col: number;
+  }[];
+
+  return {
+    countries: countryRows.map((r) => ({ id: r.id, campaignId: r.campaign_id, seat: r.seat })),
+    tiles: tileRows.map((r) => ({ row: r.row, col: r.col, ownerCountryId: r.owner_country_id })),
+    buildings: buildingRows.map((r) => ({
+      tileId: r.tile_id,
+      countryId: r.country_id,
+      type: r.type,
+      row: r.row,
+      col: r.col,
+    })),
+  };
 }
