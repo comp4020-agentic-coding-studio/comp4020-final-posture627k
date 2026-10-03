@@ -497,13 +497,21 @@ export function setResourcePreset(
 }
 
 export type ApproveResult =
-  | { ok: true; revision: number }
+  | { ok: true; revision: number; changed: boolean }
   | { ok: false; reason: "not_participant" | "not_pre_start" };
 
 // Approving is scoped to "the current revision", read fresh inside this same
 // transaction — never a revision number supplied by the client. Approval
 // rows for past revisions are kept (not deleted) but are simply never
 // selected by anything that only looks at the current revision.
+//
+// `changed` (Crit 9) reports whether this call actually inserted a new
+// approval row, as opposed to a no-op repeat of an already-recorded
+// approval for the same participant/revision — taken from the INSERT's own
+// `changes` count (node:sqlite's StatementResultingChanges), not a second,
+// separate read. ON CONFLICT DO NOTHING makes `changes` 0 exactly when
+// nothing was written, confirmed directly against this Node runtime rather
+// than assumed.
 export function approveCurrentSettings(campaignId: number, identityId: number): ApproveResult {
   db.exec("BEGIN IMMEDIATE");
   try {
@@ -525,12 +533,14 @@ export function approveCurrentSettings(campaignId: number, identityId: number): 
       return { ok: false, reason: "not_pre_start" };
     }
 
-    db.prepare(
-      "INSERT INTO approvals (participant_id, revision) VALUES (?, ?) ON CONFLICT (participant_id, revision) DO NOTHING",
-    ).run(participant.id, campaign.settings_revision);
+    const info = db
+      .prepare(
+        "INSERT INTO approvals (participant_id, revision) VALUES (?, ?) ON CONFLICT (participant_id, revision) DO NOTHING",
+      )
+      .run(participant.id, campaign.settings_revision);
 
     db.exec("COMMIT");
-    return { ok: true, revision: campaign.settings_revision };
+    return { ok: true, revision: campaign.settings_revision, changed: info.changes > 0 };
   } catch (err) {
     db.exec("ROLLBACK");
     throw err;

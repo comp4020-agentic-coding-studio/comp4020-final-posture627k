@@ -26,7 +26,7 @@ import {
   type ResourcePreset,
   type WorldState,
 } from "./db.ts";
-import { subscribe as subscribeToRealtimeUpdates } from "./realtime.ts";
+import { publish, subscribe as subscribeToRealtimeUpdates } from "./realtime.ts";
 
 // Co-located with this file so it resolves the same way locally and in the
 // Docker image, regardless of the process's working directory.
@@ -421,7 +421,7 @@ ${gridHtml}
         <h1>Campaign ${escapeHtml(campaign.code)}</h1>
         <p class="status-line">Status: pre-start (configuring).</p>
         ${selfSection}
-        <p class="meta">Other players' changes appear after you refresh this page.</p>
+        <p class="meta">Other players' committed changes appear automatically while this page is open.</p>
       </header>
 
       <section class="panel invite">
@@ -568,6 +568,11 @@ app.post("/c/:code/join", (c) => {
     );
   }
 
+  // Only a genuinely new participant is a shared state change worth telling
+  // anyone else about — the same identity idempotently re-joining (already
+  // handled, already committed, nothing new) must not publish.
+  if (!result.alreadyJoined) publish(campaign.id);
+
   return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
 });
 
@@ -598,6 +603,10 @@ app.post("/c/:code/settings", async (c) => {
     return c.html(pageShell("Cannot change settings", `      <h1>${escapeHtml(message)}</h1>`), status);
   }
 
+  // Resubmitting the already-active preset is a no-op (no revision bump, no
+  // approval invalidation) — nothing changed, so nothing to notify.
+  if (result.changed) publish(campaign.id);
+
   return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
 });
 
@@ -615,6 +624,10 @@ app.post("/c/:code/approve", (c) => {
         : (["Approval is only possible before the match starts.", 409] as const);
     return c.html(pageShell("Cannot approve", `      <h1>${escapeHtml(message)}</h1>`), status);
   }
+
+  // A repeat approval of the same current revision is an idempotent no-op
+  // (ON CONFLICT DO NOTHING) — nothing changed, so nothing to notify.
+  if (result.changed) publish(campaign.id);
 
   return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
 });
@@ -638,6 +651,10 @@ app.post("/c/:code/start", (c) => {
             ] as const);
     return c.html(pageShell("Cannot start", `      <h1>${escapeHtml(message)}</h1>`), status);
   }
+
+  // A successful start always transitions configuring -> started and
+  // generates the world: always an effective change.
+  publish(campaign.id);
 
   return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
 });
@@ -670,6 +687,12 @@ app.post("/c/:code/build", async (c) => {
               : (["That tile already has a building.", 409] as const);
     return c.html(pageShell("Cannot build", `      <h1>${escapeHtml(message)}</h1>`), status);
   }
+
+  // A successful construction always inserts a new building: always an
+  // effective change. On the same-tile race, only the winning request's
+  // transaction actually commits and reaches this line — the loser returns
+  // through the !result.ok branch above and never publishes.
+  publish(campaign.id);
 
   return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
 });
