@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { getCookie, setCookie } from "hono/cookie";
+import { streamSSE } from "hono/streaming";
 import type { Context } from "hono";
 import {
   approveCurrentSettings,
@@ -12,6 +13,7 @@ import {
   findIdentityByTokenHash,
   getCampaignByCode,
   getLobbyStatus,
+  getParticipantForIdentity,
   getWorldForCampaign,
   hashToken,
   joinCampaign,
@@ -24,6 +26,7 @@ import {
   type ResourcePreset,
   type WorldState,
 } from "./db.ts";
+import { subscribe as subscribeToRealtimeUpdates } from "./realtime.ts";
 
 // Co-located with this file so it resolves the same way locally and in the
 // Docker image, regardless of the process's working directory.
@@ -576,6 +579,86 @@ app.post("/c/:code/build", async (c) => {
   return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
 });
 
+// Crit 9 Slice 1: SSE transport only. No existing mutation publishes to this
+// yet (see docs/crit-9-architecture.md) — the hub is exercised directly by
+// tests, and this route exists so a real connection/subscribe/heartbeat/
+// cleanup cycle can be verified end to end. Deliberately narrower than
+// GET /c/:code's own visibility: only an actual participant may subscribe,
+// even though a non-participant may already view the page itself (see the
+// architecture doc's Section 3 for why).
+//
+// Heartbeat: a comment-free "heartbeat" SSE event every 20 seconds, so
+// intermediate proxies (Fly's edge) don't treat an otherwise-quiet
+// connection as dead, and so a client can notice a silently-broken
+// connection faster than a TCP timeout would. This interval is internal only
+// — nothing in this route accepts a client-supplied interval.
+const HEARTBEAT_INTERVAL_MS = 20_000;
+
+app.get("/c/:code/events", (c) => {
+  const campaign = getCampaignByCode(c.req.param("code"));
+  if (!campaign) return notFoundPage(c);
+
+  const identityId = c.get("identityId");
+  const participant = getParticipantForIdentity(campaign.id, identityId);
+  if (!participant) {
+    return c.html(
+      pageShell(
+        "Cannot subscribe",
+        "      <h1>Only a participant in this campaign can subscribe to its live updates.</h1>",
+      ),
+      403,
+    );
+  }
+
+  return streamSSE(c, async (stream) => {
+    const unsubscribe = subscribeToRealtimeUpdates(campaign.id, async () => {
+      await stream.writeSSE({ event: "campaign_changed", data: "" });
+    });
+
+    const heartbeat = setInterval(() => {
+      stream.writeSSE({ event: "heartbeat", data: "" }).catch(() => {});
+    }, HEARTBEAT_INTERVAL_MS);
+
+    // Hono's write() swallows every transport-level write error internally
+    // (see node_modules/hono/dist/utils/stream.js), so a dead connection is
+    // never surfaced to us as a rejected writeSSE() — stream.onAbort() is the
+    // only real signal we get. abort() is single-shot and only invokes
+    // listeners already present in its list at the moment it fires, so this
+    // listener MUST be registered before this callback's first `await` —
+    // otherwise a client that disconnects before the "ready" write below
+    // completes could trigger abort() first, and this cleanup would be
+    // registered too late and silently never run (leaking the heartbeat
+    // interval and the realtime.ts subscription for the process's lifetime).
+    // cleanedUp guards idempotency explicitly, rather than relying only on
+    // the primitives it calls happening to be safe to repeat.
+    let cleanedUp = false;
+    function cleanup(): void {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      clearInterval(heartbeat);
+      unsubscribe();
+    }
+
+    const aborted = new Promise<void>((resolve) => {
+      stream.onAbort(() => {
+        cleanup();
+        resolve();
+      });
+    });
+
+    // Transport-only signal: confirms the stream opened. Not a gameplay
+    // event, and must never be treated as one by a future client. Issued
+    // only now, since onAbort is already registered above — no suspension
+    // point has occurred yet that could let an abort race ahead of it.
+    await stream.writeSSE({ event: "ready", data: "" });
+
+    // streamSSE closes the stream as soon as this callback returns, so it
+    // stays pending until the connection aborts (client disconnect, network
+    // failure, etc.), at which point cleanup runs exactly once.
+    await aborted;
+  });
+});
+
 app.get("/readme/", (c) => {
   const readme = readFileSync(readmePath, "utf8");
   return c.html(
@@ -583,6 +666,22 @@ app.get("/readme/", (c) => {
   );
 });
 
+// Exported so spec/realtime.test.ts can exercise the real Hono app
+// in-process (via app.fetch), the same way spec/migration.test.ts and
+// spec/settlement.test.ts already import db.ts directly rather than going
+// through HTTP — needed because verifying that a direct realtime.ts publish()
+// reaches an open SSE stream requires the test and the stream to share the
+// same in-memory subscriber registry, which isn't possible against a
+// separate process (e.g. the Docker container the other spec files test
+// against over baseUrl).
+export { app };
+
 const port = Number(process.env.PORT) || 8080;
 
-serve({ fetch: app.fetch, port, hostname: "0.0.0.0" });
+// Only bind a real port when this file is actually run as the application
+// entrypoint (`node server.ts`, including under Docker/Fly) — not merely
+// imported for its `app` export, which would otherwise try to bind the same
+// port a real running instance might already hold.
+if (import.meta.filename === process.argv[1]) {
+  serve({ fetch: app.fetch, port, hostname: "0.0.0.0" });
+}
