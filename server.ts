@@ -322,7 +322,13 @@ ${rows}        </tbody>
       </table>`;
 }
 
-function renderCampaignPage(c: Context, campaign: Campaign): Response {
+// Computes the dynamic campaign HTML for the current requester's identity —
+// lobby (pre-start) or world (started), participant or not. This is the one
+// shared rendering seam Crit 9 needs: GET /c/:code wraps its result in the
+// full page shell plus the realtime wrapper/script, and GET /c/:code/live
+// (below) returns exactly the same string as a bare fragment. There is no
+// separate copy of the lobby/world rendering logic anywhere else.
+function renderCampaignBody(c: Context, campaign: Campaign): string {
   const identityId = c.get("identityId");
   const { participants, approvedSeats, ready } = getLobbyStatus(campaign);
   const self = participants.find((p) => p.identityId === identityId);
@@ -331,8 +337,6 @@ function renderCampaignPage(c: Context, campaign: Campaign): Response {
   const shareUrl = new URL(`/c/${encodeURIComponent(campaign.code)}`, c.req.url).toString();
   const presetLabel = PRESET_LABELS[campaign.resourcePreset];
   const started = campaign.status === "started";
-
-  let body: string;
 
   if (started) {
     const selfLine = self
@@ -355,7 +359,7 @@ function renderCampaignPage(c: Context, campaign: Campaign): Response {
     const world = getWorldForCampaign(campaign.id);
     const gridHtml = renderWorldGrid(world, self?.seat, campaign.code);
 
-    body = `      <header class="panel">
+    return `      <header class="panel">
         <h1>Campaign ${escapeHtml(campaign.code)}</h1>
         <p class="status-line">Status: started.</p>
         ${selfLine}
@@ -413,7 +417,7 @@ ${gridHtml}
         : "<p class=\"meta\">Not ready: both seats must be filled and both participants must approve the current settings.</p>"
       : "";
 
-    body = `      <header class="panel">
+    return `      <header class="panel">
         <h1>Campaign ${escapeHtml(campaign.code)}</h1>
         <p class="status-line">Status: pre-start (configuring).</p>
         ${selfSection}
@@ -445,14 +449,105 @@ ${gridHtml}
         ${startControls}
       </section>`;
   }
+}
 
-  return c.html(pageShell(`Campaign ${campaign.code}`, body));
+// The campaign-live wrapper's id, shared between the full page (below) and
+// the realtime client script's refresh target — exactly one element with
+// this id exists per campaign page load.
+const CAMPAIGN_LIVE_WRAPPER_ID = "campaign-live";
+
+// Builds the inline realtime client script for a participant only. Listens
+// for exactly "ready" (covers first connection and every native reconnect —
+// the server sends one per stream) and "campaign_changed"; heartbeat is
+// deliberately never listened for, so it can never trigger a refresh. The
+// refresh itself is serialized/coalesced: at most one /live fetch is ever in
+// flight, a refresh requested mid-fetch is merely queued, and finishing a
+// fetch runs exactly one queued catch-up refresh rather than one per missed
+// event. A failed fetch (network error or non-OK status) only logs a
+// warning — it never clears or replaces the currently-rendered campaign UI,
+// and a later ready/campaign_changed event gets another chance.
+function renderRealtimeScript(eventsUrl: string, liveUrl: string): string {
+  return `      <script>
+        (function () {
+          var fetchInFlight = false;
+          var refreshQueued = false;
+
+          function refreshCampaignLive() {
+            if (fetchInFlight) {
+              refreshQueued = true;
+              return;
+            }
+            fetchInFlight = true;
+            fetch(${JSON.stringify(liveUrl)}, { credentials: "same-origin" })
+              .then(function (res) {
+                if (!res.ok) throw new Error("live fragment fetch failed: " + res.status);
+                return res.text();
+              })
+              .then(function (html) {
+                var el = document.getElementById(${JSON.stringify(CAMPAIGN_LIVE_WRAPPER_ID)});
+                if (el) el.innerHTML = html;
+              })
+              .catch(function (err) {
+                console.warn("campaign live refresh failed", err);
+              })
+              .finally(function () {
+                fetchInFlight = false;
+                if (refreshQueued) {
+                  refreshQueued = false;
+                  refreshCampaignLive();
+                }
+              });
+          }
+
+          var source = new EventSource(${JSON.stringify(eventsUrl)});
+          source.addEventListener("ready", refreshCampaignLive);
+          source.addEventListener("campaign_changed", refreshCampaignLive);
+        })();
+      </script>`;
+}
+
+function renderCampaignPage(c: Context, campaign: Campaign): Response {
+  const identityId = c.get("identityId");
+  const isParticipant = getParticipantForIdentity(campaign.id, identityId) !== undefined;
+  const bodyHtml = renderCampaignBody(c, campaign);
+  const code = encodeURIComponent(campaign.code);
+
+  // Only a participant ever opens the realtime connection — a non-
+  // participant may already view this page (see docs/crit-9-architecture.md
+  // section 3 for why the subscription itself is narrower than page
+  // visibility), so this script, and the SSE connection it opens, simply
+  // doesn't exist for them at all.
+  const realtimeScript = isParticipant ? renderRealtimeScript(`/c/${code}/events`, `/c/${code}/live`) : "";
+
+  return c.html(
+    pageShell(
+      `Campaign ${campaign.code}`,
+      `      <div id="${CAMPAIGN_LIVE_WRAPPER_ID}">
+${bodyHtml}
+      </div>
+${realtimeScript}`,
+    ),
+  );
 }
 
 app.get("/c/:code", (c) => {
   const campaign = getCampaignByCode(c.req.param("code"));
   if (!campaign) return notFoundPage(c);
   return renderCampaignPage(c, campaign);
+});
+
+// Crit 9 Slice 2: the authoritative live fragment the realtime client script
+// refetches. Identity-specific and can include a just-settled resource
+// balance, so it must never be cached or stored by a shared/intermediate
+// cache. No JSON, no client-submitted identity/seat/country — exactly the
+// same renderCampaignBody() output GET /c/:code itself embeds, just without
+// the page shell around it (no <!doctype html>, no <html> wrapper).
+app.get("/c/:code/live", (c) => {
+  const campaign = getCampaignByCode(c.req.param("code"));
+  if (!campaign) return notFoundPage(c);
+
+  c.header("Cache-Control", "no-store, private");
+  return c.html(renderCampaignBody(c, campaign));
 });
 
 app.post("/c/:code/join", (c) => {
