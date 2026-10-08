@@ -250,9 +250,10 @@ it("9. community-card / deal position survives reopening", async () => {
   expect(afterCheck.ok).toBe(true);
   if (!afterCheck.ok) return;
 
-  const toFlop = db.advanceHandStreet(created.hand.id, "flop");
-  expect(toFlop.ok).toBe(true);
-  if (!toFlop.ok) return;
+  // Betting just completed, so the hand has already auto-advanced to the
+  // flop as a direct consequence of that same action — no separate
+  // advanceHandStreet call is needed (Slice 4B's automatic progression).
+  expect(afterCheck.hand.street).toBe("flop");
 
   const flopCards = db.getCommunityCards(created.hand.id);
   expect(flopCards).toHaveLength(3);
@@ -625,17 +626,16 @@ it("17. chip conservation holds after each individually committed action", () =>
   expect(afterCall.ok).toBe(true);
   if (!afterCall.ok) return;
   expect(sumChips(afterCall.hand)).toBe(2000);
-
-  const toFlop = db.advanceHandStreet(created.hand.id, "flop");
-  expect(toFlop.ok).toBe(true);
-  if (!toFlop.ok) return;
-  expect(sumChips(toFlop.hand)).toBe(2000);
+  // Betting just completed, so the hand has already auto-advanced to the
+  // flop as a direct consequence of this same call (Slice 4B's automatic
+  // progression) — no separate advanceHandStreet call is needed.
+  expect(afterCall.hand.street).toBe("flop");
 
   const afterBet = db.submitBettingAction({
     handId: created.hand.id,
     identityId: guestIdentityId, // big blind acts first postflop
     requestId: "req-17-c",
-    expectedVersion: toFlop.hand.version,
+    expectedVersion: afterCall.hand.version,
     action: { type: "bet", amount: 50 },
   });
   expect(afterBet.ok).toBe(true);

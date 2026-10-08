@@ -65,15 +65,19 @@ export type SettleHandResult =
 // happen: either someone has already folded (handOutcome "uncontested"),
 // or betting is complete and the river has actually been reached — not
 // merely "runout_required" with earlier streets never dealt out, which is
-// Slice 4B's job (running out remaining streets), not this one's.
-function isTerminal(state: HeadsUpBettingState): boolean {
+// the hand-lifecycle coordinator's job (running out remaining streets),
+// not this module's. Exported so the lifecycle coordinator (poker/
+// hand-lifecycle.ts) can check readiness-for-settlement using the exact
+// same rule settleHand itself enforces, rather than a second, possibly
+// divergent copy of it.
+export function isHandTerminal(state: HeadsUpBettingState): boolean {
   return state.handOutcome === "uncontested" || (state.isBettingComplete && state.street === "river");
 }
 
 export function settleHand(input: SettlementInput): SettleHandResult {
   const { bettingState, holeCards, communityCards } = input;
 
-  if (!isTerminal(bettingState)) {
+  if (!isHandTerminal(bettingState)) {
     return { ok: false, reason: "hand_not_terminal" };
   }
 

@@ -14,6 +14,8 @@ import {
   type Seat as PokerSeatNumber,
   type Street,
 } from "./poker/betting.ts";
+import { nextStreet as computeNextStreet, shouldAdvanceStreet, isReadyForSettlement } from "./poker/hand-lifecycle.ts";
+import { settleHand, type SettlementPlan, type SettlementRejectionReason } from "./poker/settlement.ts";
 
 // Schema version for this file, tracked via SQLite's own PRAGMA user_version.
 // A fresh/empty data directory starts at 0; this module brings it to
@@ -714,7 +716,7 @@ export function getActiveHandForTable(tableId: number): PersistedHand | undefine
 
 export type CreateHandResult =
   | { readonly ok: true; readonly hand: PersistedHand }
-  | { readonly ok: false; readonly reason: "table_not_ready" | "hand_already_active" };
+  | { readonly ok: false; readonly reason: "table_not_ready" | "hand_already_active" | "insufficient_chips" };
 
 // Creates a brand-new hand for `tableId`: determines the next hand number
 // and button seat (alternating from hand 1 = seat 1, a simple fixed
@@ -727,7 +729,13 @@ export type CreateHandResult =
 // `one_active_hand_per_table` is the actual backstop against two concurrent
 // calls both creating a hand for the same table — this function catches
 // that constraint violation rather than relying only on a pre-check.
-export function createPokerHand(tableId: number): CreateHandResult {
+// `overrideDeck` exists only so this module's own tests can supply a fixed,
+// known deck order for deterministic, reproducible fixtures (e.g. forcing a
+// specific showdown outcome or a specific short-all-in scenario) — every
+// real caller omits it and gets the secure default
+// (shuffleDeck(createDeck())), exactly like poker/deck.ts's own injectable-
+// RNG parameter never gets overridden outside that module's tests either.
+export function createPokerHand(tableId: number, overrideDeck?: Card[]): CreateHandResult {
   db.exec("BEGIN IMMEDIATE");
   try {
     const table = db
@@ -749,13 +757,23 @@ export function createPokerHand(tableId: number): CreateHandResult {
       return { ok: false, reason: "table_not_ready" };
     }
 
+    // A new hand can only start if both players retain enough chips to
+    // play at all (at minimum, one chip, to post something and have a
+    // decision that matters). This is deliberately not "rebuy to 1,000" —
+    // a player who has busted stays busted; the match is over for this
+    // table until a later slice (if ever) adds a deliberate rebuy feature.
+    if (seat1.chip_stack <= 0 || seat2.chip_stack <= 0) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "insufficient_chips" };
+    }
+
     const lastHandNumberRow = db
       .prepare("SELECT MAX(hand_number) AS maxHandNumber FROM poker_hands WHERE table_id = ?")
       .get(tableId) as { maxHandNumber: number | null };
     const handNumber = (lastHandNumberRow.maxHandNumber ?? 0) + 1;
     const buttonSeat: PokerSeatNumber = handNumber % 2 === 1 ? 1 : 2;
 
-    const deck = shuffleDeck(createDeck());
+    const deck = overrideDeck ?? shuffleDeck(createDeck());
     const bettingState = initializeHeadsUpBetting({
       buttonSeat,
       smallBlind: table.small_blind,
@@ -789,6 +807,15 @@ export function createPokerHand(tableId: number): CreateHandResult {
       const holeCards = [deck[a], deck[b]];
       insertHandPlayer.run(handId, seat.seat_number, seat.identity_id, JSON.stringify(holeCards));
     }
+
+    // An extreme short stack can make the blinds alone already a terminal
+    // state — e.g. a small-blind post so short it's already covered by the
+    // big blind's own post, leaving literally no decision for either seat
+    // (see poker/betting.ts's isSettled). This cascades through the runout
+    // and settles automatically, exactly like after any other action — no
+    // player should ever have to submit an action that cannot legally
+    // exist.
+    advanceAndSettleIfNeeded(handId, bettingState);
 
     db.exec("COMMIT");
     return { ok: true, hand: getHandById(handId)! };
@@ -827,14 +854,32 @@ export function getOwnHoleCards(handId: number, identityId: number): Card[] | un
 // Community cards are always public once dealt and are reconstructed from
 // the deck order and the hand's current street — there is no separately
 // stored board that could drift from either.
+function getCommunityCardsFromRow(row: { street: string; deck_json: string }): Card[] {
+  const deck = JSON.parse(row.deck_json) as Card[];
+  const count = BOARD_CARD_COUNT_BY_STREET[row.street as Street];
+  return deck.slice(BOARD_START_INDEX, BOARD_START_INDEX + count);
+}
+
 export function getCommunityCards(handId: number): Card[] {
   const row = db.prepare("SELECT street, deck_json FROM poker_hands WHERE id = ?").get(handId) as
     | { street: string; deck_json: string }
     | undefined;
-  if (!row) return [];
-  const deck = JSON.parse(row.deck_json) as Card[];
-  const count = BOARD_CARD_COUNT_BY_STREET[row.street as Street];
-  return deck.slice(BOARD_START_INDEX, BOARD_START_INDEX + count);
+  return row ? getCommunityCardsFromRow(row) : [];
+}
+
+// Internal: both seats' hole cards for a hand, used only by the settlement
+// functions below — never exposed as a public per-identity-scoped read,
+// since that would hand one player's own query path access to the other
+// player's cards. getOwnHoleCards above is the only externally-safe read.
+function getHoleCardsForSettlement(handId: number): Record<PokerSeatNumber, readonly [Card, Card]> {
+  const rows = db
+    .prepare("SELECT seat_number, hole_cards_json FROM poker_hand_players WHERE hand_id = ?")
+    .all(handId) as { seat_number: number; hole_cards_json: string }[];
+  const result = {} as Record<PokerSeatNumber, readonly [Card, Card]>;
+  for (const row of rows) {
+    result[row.seat_number as PokerSeatNumber] = JSON.parse(row.hole_cards_json) as [Card, Card];
+  }
+  return result;
 }
 
 export interface PersistedAction {
@@ -894,11 +939,16 @@ export function submitBettingAction(params: SubmitBettingActionParams): ApplyPer
   db.exec("BEGIN IMMEDIATE");
   try {
     const row = getHandRowById(handId);
-    if (!row || row.status !== "active") {
+    if (!row) {
       db.exec("ROLLBACK");
-      return { ok: false, reason: "hand_not_active", hand: row ? toPersistedHand(row) : undefined };
+      return { ok: false, reason: "hand_not_active", hand: undefined };
     }
 
+    // Resolving which seat this identity holds works regardless of the
+    // hand's current status — a settled hand keeps its player rows forever,
+    // as immutable history — and this must be checked before the
+    // duplicate-request and status checks below, since validating a
+    // duplicate's content (below) needs to know the seat either way.
     const seat = getSeatNumberForIdentityInHand(handId, identityId);
     if (seat === undefined) {
       db.exec("ROLLBACK");
@@ -922,6 +972,12 @@ export function submitBettingAction(params: SubmitBettingActionParams): ApplyPer
       // reject outright, not a harmless duplicate to silently approve. This
       // is what stops a reused id from masking, say, a different player's
       // action or a different wager amount as "already applied, no-op."
+      //
+      // Deliberately checked BEFORE the hand-active check below: a retried
+      // request_id for the very action that just completed and settled the
+      // hand must still be recognized as an idempotent replay, not rejected
+      // as "hand not active" merely because settlement already ran as a
+      // consequence of that same original action.
       const sameContent =
         existingAction.seat_number === seat &&
         existingAction.action_type === action.type &&
@@ -938,6 +994,14 @@ export function submitBettingAction(params: SubmitBettingActionParams): ApplyPer
       return { ok: true, duplicate: true, hand: toPersistedHand(row) };
     }
 
+    // Only a genuinely NEW request_id reaches this far, so only now does the
+    // hand's current status matter: a brand-new action can never be applied
+    // to a hand that is no longer active.
+    if (row.status !== "active") {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "hand_not_active", hand: toPersistedHand(row) };
+    }
+
     const currentState = JSON.parse(row.betting_json) as HeadsUpBettingState;
     const result = applyBettingAction(currentState, seat, action, { expectedVersion });
 
@@ -946,16 +1010,22 @@ export function submitBettingAction(params: SubmitBettingActionParams): ApplyPer
       return { ok: false, reason: result.reason, hand: toPersistedHand(row) };
     }
 
-    db.prepare(
-      `UPDATE poker_hands SET street = ?, version = ?, betting_json = ?
-       WHERE id = ? AND version = ?`,
-    ).run(result.state.street, result.state.version, JSON.stringify(result.state), handId, row.version);
-
+    // The action record reflects exactly this action's own resulting
+    // version, before any automatic street advance or settlement that may
+    // follow — those are system-triggered consequences, not a player
+    // decision, and are never logged as actions themselves.
     db.prepare(
       `INSERT INTO poker_actions
          (hand_id, seat_number, request_id, expected_version, action_type, amount, resulting_version)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
     ).run(handId, seat, requestId, expectedVersion, action.type, action.amount ?? null, result.state.version);
+
+    // Cascades through any further streets that need no additional betting
+    // (a completed round, or an all-in runout with nothing left to decide)
+    // and settles automatically once terminal — all within this same
+    // transaction, so the action that completes a hand and its settlement
+    // are one atomic unit, never two independent transactions.
+    advanceAndSettleIfNeeded(handId, result.state);
 
     db.exec("COMMIT");
     return { ok: true, duplicate: false, hand: getHandById(handId)! };
@@ -965,15 +1035,53 @@ export function submitBettingAction(params: SubmitBettingActionParams): ApplyPer
   }
 }
 
+// Assumes a BEGIN IMMEDIATE transaction is already open — never opens or
+// closes one itself, so it can run as the tail of submitBettingAction's own
+// transaction (the normal path) or advanceHandStreet's (a lower-level,
+// directly-testable entry point). Persists the fully-advanced state in one
+// write, then settles in the same transaction if the hand has become
+// terminal.
+function advanceAndSettleIfNeeded(handId: number, startingState: HeadsUpBettingState): void {
+  let state = startingState;
+  while (shouldAdvanceStreet(state)) {
+    const next = computeNextStreet(state.street);
+    if (!next) break; // unreachable given shouldAdvanceStreet's own check; defensive only
+    state = advanceBettingToNextStreet(state, next);
+  }
+
+  db.prepare("UPDATE poker_hands SET street = ?, version = ?, betting_json = ? WHERE id = ?").run(
+    state.street,
+    state.version,
+    JSON.stringify(state),
+    handId,
+  );
+
+  if (isReadyForSettlement(state)) {
+    const settled = settleHandInOpenTransaction(handId);
+    if (!settled.ok) {
+      // isReadyForSettlement and settleHand's own terminal check share the
+      // exact same rule (poker/settlement.ts's isHandTerminal), and nothing
+      // else could have settled this hand already within this same
+      // serialized transaction — reaching here would mean a real bug, not
+      // an expected race, so it's surfaced loudly rather than swallowed.
+      throw new Error(`hand ${handId} became ready for settlement but settlement failed: ${settled.reason}`);
+    }
+  }
+}
+
 export type AdvanceHandStreetResult =
   | { readonly ok: true; readonly hand: PersistedHand }
   | { readonly ok: false; readonly reason: "hand_not_active" | "betting_not_complete" };
 
-// Transactionally advances a hand to its next street once betting on the
-// current street is complete, resetting the pure engine's own street-
-// specific fields (see poker/betting.ts's advanceToNextStreet) while
-// preserving total hand contributions. This does not deal or reveal any
-// card by itself — community cards remain purely a read-time
+// A lower-level, directly-testable entry point: transactionally advances a
+// hand to its next street once betting on the current street is complete,
+// resetting the pure engine's own street-specific fields (see poker/
+// betting.ts's advanceToNextStreet) while preserving total hand
+// contributions. Like submitBettingAction, this then cascades through any
+// further streets an all-in runout requires and settles automatically if
+// the hand becomes terminal, all in this same transaction — manually
+// advancing one street never leaves a runout half-finished. Does not deal
+// or reveal any card by itself — community cards remain purely a read-time
 // reconstruction from deck_json + street (see getCommunityCards above).
 export function advanceHandStreet(handId: number, nextStreet: Street): AdvanceHandStreetResult {
   db.exec("BEGIN IMMEDIATE");
@@ -990,11 +1098,8 @@ export function advanceHandStreet(handId: number, nextStreet: Street): AdvanceHa
       return { ok: false, reason: "betting_not_complete" };
     }
 
-    const newState = advanceBettingToNextStreet(currentState, nextStreet);
-    db.prepare(
-      `UPDATE poker_hands SET street = ?, version = ?, betting_json = ?
-       WHERE id = ? AND version = ?`,
-    ).run(newState.street, newState.version, JSON.stringify(newState), handId, row.version);
+    const advanced = advanceBettingToNextStreet(currentState, nextStreet);
+    advanceAndSettleIfNeeded(handId, advanced);
 
     db.exec("COMMIT");
     return { ok: true, hand: getHandById(handId)! };
@@ -1002,4 +1107,123 @@ export function advanceHandStreet(handId: number, nextStreet: Street): AdvanceHa
     db.exec("ROLLBACK");
     throw err;
   }
+}
+
+export type SettlePersistedHandResult =
+  | { readonly ok: true; readonly hand: PersistedHand; readonly plan: SettlementPlan }
+  | {
+      readonly ok: false;
+      readonly reason: SettlementRejectionReason | "hand_not_found" | "already_settled";
+    };
+
+// Assumes a BEGIN IMMEDIATE transaction is already open — the caller is
+// responsible for COMMIT/ROLLBACK. Never opens or closes one itself, so it
+// can run either as the tail of advanceAndSettleIfNeeded's own transaction
+// (the normal path: a hand settles in the SAME transaction as the action
+// that completed it) or inside settlePersistedHand's own transaction below
+// (a standalone entry point, kept for recovery/testing — in normal
+// operation a hand always settles automatically and this is never needed).
+//
+// Re-derives everything fresh from the database rather than trusting any
+// state the caller already has in memory, matching this project's existing
+// transaction discipline. Exactly-once is enforced by the `WHERE status =
+// 'active'` clause on the final UPDATE below: inside a serialized BEGIN
+// IMMEDIATE transaction it can only ever match once for a given hand, so a
+// second concurrent settlement attempt (whatever triggered it) updates zero
+// rows rather than crediting chips twice. This is a real SQLite guarantee,
+// not an in-process flag — two processes both attempting to settle the
+// same hand serialize on the same exclusive lock, and whichever commits
+// second sees status already 'settled' and no-ops.
+function settleHandInOpenTransaction(
+  handId: number,
+): { ok: true; plan: SettlementPlan } | { ok: false; reason: SettlementRejectionReason | "hand_not_found" | "already_settled" } {
+  const row = getHandRowById(handId);
+  if (!row) return { ok: false, reason: "hand_not_found" };
+  if (row.status === "settled") return { ok: false, reason: "already_settled" };
+
+  const state = JSON.parse(row.betting_json) as HeadsUpBettingState;
+  const holeCards = getHoleCardsForSettlement(handId);
+  const communityCards = getCommunityCardsFromRow(row);
+
+  const settlement = settleHand({ bettingState: state, holeCards, communityCards });
+  if (!settlement.ok) {
+    return { ok: false, reason: settlement.reason };
+  }
+
+  // Defensive, should be unreachable given the pure settlement engine's own
+  // guarantees — refuses to ever apply a payout that isn't chip-neutral,
+  // rather than silently trusting it.
+  if (settlement.plan.totalChipsAfter !== settlement.plan.totalChipsBefore) {
+    throw new Error(
+      `settlement chip conservation violated for hand ${handId}: before=${settlement.plan.totalChipsBefore} after=${settlement.plan.totalChipsAfter}`,
+    );
+  }
+
+  db.prepare("UPDATE poker_seats SET chip_stack = ? WHERE table_id = ? AND seat_number = 1").run(
+    settlement.plan.finalStacks[1],
+    row.table_id,
+  );
+  db.prepare("UPDATE poker_seats SET chip_stack = ? WHERE table_id = ? AND seat_number = 2").run(
+    settlement.plan.finalStacks[2],
+    row.table_id,
+  );
+
+  const update = db
+    .prepare(
+      `UPDATE poker_hands SET status = 'settled', settled_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now'), version = version + 1
+       WHERE id = ? AND status = 'active'`,
+    )
+    .run(handId);
+  if (update.changes === 0) {
+    // Cannot actually happen under BEGIN IMMEDIATE — included so this
+    // function never silently claims success if it somehow did.
+    return { ok: false, reason: "already_settled" };
+  }
+
+  return { ok: true, plan: settlement.plan };
+}
+
+// Standalone settlement entry point, for recovery/testing: in normal
+// operation, every hand settles automatically in the same transaction as
+// the action that completed it (see advanceAndSettleIfNeeded), so this is
+// never required for ordinary play. It exists for the case where a hand
+// was somehow left terminal-but-unsettled (e.g. exercising the exactly-once
+// guarantee directly, or a future recovery sweep).
+export function settlePersistedHand(handId: number): SettlePersistedHandResult {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = settleHandInOpenTransaction(handId);
+    if (!result.ok) {
+      db.exec("ROLLBACK");
+      return result;
+    }
+    db.exec("COMMIT");
+    return { ok: true, hand: getHandById(handId)!, plan: result.plan };
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+export type GetSettlementPlanResult =
+  | { readonly ok: true; readonly plan: SettlementPlan }
+  | { readonly ok: false; readonly reason: SettlementRejectionReason | "hand_not_found" };
+
+// Deterministically reconstructs the settlement plan for a terminal hand
+// (settled or not) from its own already-persisted data. No settlement
+// result is separately stored anywhere: betting_json, deck_json, and each
+// player's hole_cards_json are already there, and — once a hand is no
+// longer active — immutable, so recomputing on demand is simpler and
+// avoids a second, independently-stored copy of purely derived information
+// that could in principle drift from the data it was derived from. This is
+// the "minimal necessary schema" choice: no new column or table was added
+// for Slice 4B.
+export function getSettlementPlanForHand(handId: number): GetSettlementPlanResult {
+  const row = getHandRowById(handId);
+  if (!row) return { ok: false, reason: "hand_not_found" };
+  const state = JSON.parse(row.betting_json) as HeadsUpBettingState;
+  const holeCards = getHoleCardsForSettlement(handId);
+  const communityCards = getCommunityCardsFromRow(row);
+  const result = settleHand({ bettingState: state, holeCards, communityCards });
+  return result.ok ? { ok: true, plan: result.plan } : { ok: false, reason: result.reason };
 }
