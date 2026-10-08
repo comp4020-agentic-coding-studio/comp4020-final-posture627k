@@ -100,3 +100,85 @@ each carry their own large set of invariants. Nothing in this repository or
 its README claims the current prototype is a complete strategy game, or that
 its design has been shown to teach the coordination and planning skills it's
 built around — those remain stated design goals, not measured outcomes.
+
+## Crit 9: realtime synchronization
+
+Realtime work followed the same before-code discipline as Crit 8.
+[`f4a14cb`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/f4a14cb)
+recorded the full decision record in `docs/crit-9-architecture.md` before
+any realtime code existed: SQLite stays the sole authority, an SSE event
+carries no payload, and the contract for exactly which mutations must (and
+must not) publish a notification was specified up front — including an
+explicit correction made mid-document, that a mutation returning
+`ok: true` is not the same as a mutation that changed anything, and only
+the latter may ever publish.
+[`4d8d0d5`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/4d8d0d5)
+added the SSE transport itself (`realtime.ts`, `GET /c/:code/events`),
+gated to participants per the ADR (`403`/`404` before the stream opens).
+Implementing cleanup surfaced a real race: `stream.onAbort()` has to be
+registered before any `await` in the handler, or a disconnect in that gap
+would go undetected — the comment recording this in `server.ts` was written
+at the point it was caught, not added afterward.
+[`bea7ede`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/bea7ede)
+added the authoritative `/live` fragment and the client-side refresh
+script, coalescing overlapping fetches so an older response can never
+overwrite a newer one.
+[`4b117ead`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/4b117ead)
+wired `publish()` into the existing mutation routes, but only on an
+*effective* change — reusing the no-op distinctions `db.ts` already exposed
+(`alreadyJoined`, `changed`) rather than re-deriving them, so a repeated
+join or a resubmission of the already-active preset correctly produces no
+notification.
+
+Beyond the automated suite (128/128, including dedicated
+`spec/realtime.test.ts`, `spec/live-fragment.test.ts`, and
+`spec/realtime-mutations.test.ts` files), this slice was verified by
+building the actual Docker image this project ships and driving it with two
+independent cookie jars acting as two separate participants: one held an
+open `/c/:code/events` connection while the other performed a real
+mutation (an approval), and the first connection received a live
+`campaign_changed` event; a subsequent `/live` fetch showed exactly the
+resulting state, correctly scoped to each identity's own view. A
+non-participant identity's attempt to open the same event stream was
+rejected with `403`, as the ADR requires.
+
+This two-identity HTTP-level verification is real and was performed
+directly against the built image. A genuine two-browser, two-human visual
+acceptance pass — the standard this project held itself to for Crit 8 — has
+not yet been performed, and this branch has not yet been deployed:
+`main` and the live Fly deployment still reflect the Crit 8 baseline only.
+
+## Pivot: strategy-war cancelled, replaced by Poker Lab
+
+A human decision was made to cancel the strategy-war product entirely and
+replace it with Poker Lab, a multiplayer Texas Hold'em application, carried
+out on a new `poker-pivot` branch from the reviewed `c9-realtime` foundation
+rather than on `main`. The decision and its architecture are recorded in
+[`docs/poker-final-architecture.md`](docs/poker-final-architecture.md)
+before any poker-specific code existed, following the same before-code
+discipline as the Crit 8 and Crit 9 architecture records. The reasoning: the
+strategy-war's own gameplay loop remained incomplete (resources had no
+sink — no armies, movement, or victory condition), while its
+infrastructure — identity, SQLite transactions, SSE, Docker, Fly — was
+real, working, and worth keeping. `main` and `c9-realtime` are both
+preserved untouched as evidence of that earlier, completed work.
+
+[`6f4689f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/6f4689f)
+is the foundation-slice commit: it removes the strategy-war's HTTP routes
+and business logic from `server.ts`/`db.ts` (keeping the v1-v4 schema and
+migrations byte-for-byte, since an existing database's historical data must
+keep migrating exactly as it always did), adds an additive v5 migration for
+two new, independent tables (`poker_tables`, `poker_seats`), and implements
+table creation, heads-up seating, and realtime join notifications by reusing
+the existing identity/transaction/SSE infrastructure unchanged — `realtime.ts`
+required no edits at all. The obsolete strategy-war test files were removed
+from the active suite in the same commit, since their corresponding runtime
+no longer exists; they remain in `main`'s and `c9-realtime`'s history.
+`spec/migration.test.ts` was rewritten to verify the v1-v4 chain with raw
+SQL instead of the now-removed campaign business-logic functions it used to
+call, so migration correctness stays independently verified rather than
+resting on trust.
+
+This foundation slice is not a complete game: it has no cards, no betting,
+and no hands. It is scoped and tested as exactly that — a table/seat/identity
+foundation — not represented anywhere as more than it is.
