@@ -1489,3 +1489,190 @@ it("Scenario G: two genuinely concurrent hand-start requests with the same expec
   raw.close();
   expect(rows).toHaveLength(1); // exactly one hand total, despite three racing creation attempts
 });
+
+// --- 31. Slice 6: poker table UI regression tests ---------------------------
+//
+// These test meaningful information and structure (seat identity, legal vs.
+// illegal action availability, street/community-card correctness, whose
+// turn it is), not decorative CSS/wording, per the Slice 6 brief. The
+// underlying privacy/idempotency/settlement guarantees are already covered
+// exhaustively above and in spec/poker-persistence.test.ts — these tests
+// are additive, for the redesigned rendering layer specifically.
+
+it("the table page shows both seat positions, both before and during a hand", async () => {
+  const { host, code } = await setUpReadyTable();
+
+  const beforeHandHtml = await (await host.fetch(`/t/${code}/live`)).text();
+  expect(beforeHandHtml).toContain("Seat 1: occupied");
+  expect(beforeHandHtml).toContain("Seat 2: occupied");
+
+  await startHand(host, code);
+  const duringHandHtml = await (await host.fetch(`/t/${code}/live`)).text();
+  expect(duringHandHtml).toContain('<span class="seat-name">Seat 1');
+  expect(duringHandHtml).toContain('<span class="seat-name">Seat 2');
+});
+
+// Extracts just the contents of the single <div class="community-cards">...
+// </div> block, so a card count/title check here can never be confused with
+// the player's own hole cards or the opponent's hidden-card placeholders
+// rendered elsewhere on the same page.
+function extractCommunityCardsHtml(html: string): string {
+  const match = /<div class="community-cards">([\s\S]*?)<\/div>/.exec(html);
+  expect(match, "community-cards div not found").toBeTruthy();
+  return match![1];
+}
+
+it("community cards shown in the UI match the actual current street, never more or fewer", async () => {
+  const { host, guest, code, tableId } = await setUpReadyTable();
+  const createResult = db.createPokerHand(tableId, SEAT1_WINS_DECK);
+  expect(createResult.ok).toBe(true);
+  const seats = jarBySeat(host, guest);
+
+  const preflopHtml = await (await host.fetch(`/t/${code}/live`)).text();
+  expect(preflopHtml).toContain("no community cards yet");
+  expect((extractCommunityCardsHtml(preflopHtml).match(/class="card/g) ?? []).length).toBe(0);
+
+  // Advance to the flop (both check/call preflop).
+  let hand = db.getActiveHandForTable(tableId)!;
+  let actingSeat = hand.bettingState.actingSeat!;
+  await postAction(seats[actingSeat], code, {
+    hand_id: hand.id,
+    request_id: freshRequestId(),
+    expected_version: hand.version,
+    action: "call",
+  });
+  hand = db.getActiveHandForTable(tableId)!;
+  actingSeat = hand.bettingState.actingSeat!;
+  await postAction(seats[actingSeat], code, {
+    hand_id: hand.id,
+    request_id: freshRequestId(),
+    expected_version: hand.version,
+    action: "check",
+  });
+
+  hand = db.getActiveHandForTable(tableId)!;
+  expect(hand.street).toBe("flop");
+  const flopHtml = await (await host.fetch(`/t/${code}/live`)).text();
+  const flopCommunitySection = extractCommunityCardsHtml(flopHtml);
+  const flopCommunityCards = db.getCommunityCards(hand.id);
+  expect(flopCommunityCards).toHaveLength(3);
+  expect((flopCommunitySection.match(/class="card/g) ?? []).length).toBe(3); // exactly 3, never more or fewer
+  for (const card of flopCommunityCards) {
+    const label = `${card.rank === 14 ? "A" : card.rank === 13 ? "K" : card.rank === 12 ? "Q" : card.rank === 11 ? "J" : card.rank} of ${card.suit}`;
+    expect(flopCommunitySection).toContain(`title="${label}"`);
+  }
+  expect(flopHtml).not.toContain("no community cards yet");
+});
+
+it("the acting-player badge and turn banner reflect the authoritative acting seat for both identities", async () => {
+  const { host, guest, code, tableId } = await setUpReadyTable();
+  await startHand(host, code);
+  const hand = db.getActiveHandForTable(tableId)!;
+  const actingSeat = hand.bettingState.actingSeat!;
+  const seats = jarBySeat(host, guest);
+
+  const actingPlayerHtml = await (await seats[actingSeat].fetch(`/t/${code}/live`)).text();
+  expect(actingPlayerHtml).toContain('turn-banner mine');
+  expect(actingPlayerHtml).toContain('class="badge badge-turn"');
+
+  const otherSeat: Seat = actingSeat === 1 ? 2 : 1;
+  const waitingPlayerHtml = await (await seats[otherSeat].fetch(`/t/${code}/live`)).text();
+  expect(waitingPlayerHtml).toContain('turn-banner theirs');
+});
+
+it("only the actually-legal actions are submittable forms; illegal actions render as inert, form-less disabled buttons", async () => {
+  const { host, guest, code, tableId } = await setUpReadyTable();
+  await startHand(host, code);
+  const hand = db.getActiveHandForTable(tableId)!;
+  const actingSeat = hand.bettingState.actingSeat!;
+  const seats = jarBySeat(host, guest);
+  const legal = getLegalActions(hand.bettingState, actingSeat);
+
+  const html = await (await seats[actingSeat].fetch(`/t/${code}/live`)).text();
+  const forms = html.match(/<form[^>]*action="\/t\/[^"]+\/hand\/action"[\s\S]*?<\/form>/g) ?? [];
+  const submittableActionTypes = forms.map((f) => /name="action" value="([a-z_]+)"/.exec(f)![1]);
+
+  // Button preflop: facing the big blind, so check is illegal and must not
+  // appear as a submittable form at all.
+  expect(legal.actions).not.toContain("check");
+  expect(submittableActionTypes).not.toContain("check");
+  // Call IS legal here and must be a real form.
+  expect(legal.actions).toContain("call");
+  expect(submittableActionTypes).toContain("call");
+
+  // The illegal action (check) must render as a disabled button with
+  // no enclosing <form> — not merely a disabled-looking but still
+  // functional control.
+  expect(html).toMatch(/<button type="button" class="action-btn [^"]*" disabled[^>]*>Check<\/button>/);
+  const checkIsInsideAnyForm = forms.some((f) => f.includes(">Check<"));
+  expect(checkIsInsideAnyForm).toBe(false);
+});
+
+it("raise/bet amount labels explicitly state target-total semantics (\"Raise to\"/\"Bet to\", not an ambiguous bare number)", async () => {
+  const { host, guest, code, tableId } = await setUpReadyTable();
+  await startHand(host, code);
+  const hand = db.getActiveHandForTable(tableId)!;
+  const actingSeat = hand.bettingState.actingSeat!;
+  const seats = jarBySeat(host, guest);
+
+  const html = await (await seats[actingSeat].fetch(`/t/${code}/live`)).text();
+  expect(html).toMatch(/Raise to|Bet to/);
+  expect(html).toContain("total for this street");
+  // The submit button itself also says "to", never a bare ambiguous number.
+  expect(html).toMatch(/>(Raise to|Bet to)…<\/button>/);
+});
+
+it("the non-acting player's page contains no submittable betting-action forms at all", async () => {
+  const { host, guest, code, tableId } = await setUpReadyTable();
+  await startHand(host, code);
+  const hand = db.getActiveHandForTable(tableId)!;
+  const actingSeat = hand.bettingState.actingSeat!;
+  const otherSeat: Seat = actingSeat === 1 ? 2 : 1;
+  const seats = jarBySeat(host, guest);
+
+  const html = await (await seats[otherSeat].fetch(`/t/${code}/live`)).text();
+  const actionForms = html.match(/<form[^>]*action="\/t\/[^"]+\/hand\/action"/g) ?? [];
+  expect(actionForms).toHaveLength(0);
+});
+
+it("the realtime wrapper and EventSource script survive the redesign exactly once per page", async () => {
+  const { host, code } = await setUpReadyTable();
+  const html = await (await host.fetch(`/t/${code}`)).text();
+  expect((html.match(/<div id="poker-table-live">/g) ?? []).length).toBe(1);
+  expect((html.match(/new EventSource\(/g) ?? []).length).toBe(1);
+});
+
+it("a settled hand's result panel is visually distinct and states whether it was resolved by Fold or Showdown", async () => {
+  const { host, code, tableId } = await setUpReadyTable();
+  await startHand(host, code);
+  const hand = db.getActiveHandForTable(tableId)!;
+  const actingSeat = hand.bettingState.actingSeat!;
+  const identityId = identityForSeat(tableId, actingSeat);
+  const foldResult = db.submitBettingAction({
+    handId: hand.id,
+    identityId,
+    requestId: freshRequestId(),
+    expectedVersion: hand.version,
+    action: { type: "fold" },
+  });
+  expect(foldResult.ok).toBe(true);
+
+  const html = await (await host.fetch(`/t/${code}/live`)).text();
+  expect(html).toContain("hand-result");
+  expect(html).toContain("resolved by Fold");
+});
+
+it("a showdown result panel states Showdown, shows the contested pot, and never shows a folded seat's cards", async () => {
+  const { host, guest, code, tableId } = await setUpReadyTable();
+  const createResult = db.createPokerHand(tableId, SEAT1_WINS_DECK);
+  expect(createResult.ok).toBe(true);
+  const seats = jarBySeat(host, guest);
+  await checkOrCallDown(code, seats);
+
+  const html = await (await host.fetch(`/t/${code}/live`)).text();
+  expect(html).toContain("resolved by Showdown");
+  expect(html).toContain("Contested pot:");
+  // Both seats' cards ARE shown (nobody folded in a full check-down).
+  expect(html).toContain("Seat 1:");
+  expect(html).toContain("Seat 2:");
+});

@@ -46,79 +46,220 @@ const pageShell = (title: string, body: string): string => `<!doctype html>
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${escapeHtml(title)}</title>
     <style>
+      :root {
+        --bg: #0b1220;
+        --panel-bg: #141e30;
+        --panel-border: #263249;
+        --felt: #123524;
+        --felt-border: #1e5c42;
+        --text: #e7ecf3;
+        --text-muted: #93a1b8;
+        --accent: #22c55e;
+        --accent-contrast: #052e16;
+        --fold: #ef4444;
+        --focus-ring: #7dd3fc;
+        --card-bg: #f8fafc;
+        --card-text: #111827;
+        --card-red: #dc2626;
+        --card-back-bg: #27405f;
+        --card-back-border: #3d577a;
+      }
       * { box-sizing: border-box; }
       body {
         margin: 0;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
         line-height: 1.5;
-        color: #1e293b;
-        background: #f1f5f9;
+        color: var(--text);
+        background: var(--bg);
       }
-      main { max-width: 52rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
-      h1 { margin: 0 0 0.25rem; font-size: 1.5rem; }
-      h2 { margin: 0 0 0.75rem; font-size: 1.05rem; color: #334155; }
+      main { max-width: 56rem; margin: 0 auto; padding: 1.25rem 1rem 3rem; overflow-wrap: anywhere; }
+      h1 { margin: 0 0 0.25rem; font-size: 1.4rem; color: var(--text); }
+      h2 { margin: 0 0 0.75rem; font-size: 1rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
       p { margin: 0.4rem 0; }
-      a { color: #2563eb; }
+      a { color: #7dd3fc; }
       code { overflow-wrap: anywhere; }
       label { display: block; margin: 0.4rem 0; }
       input[type="text"], input[type="number"] {
         font: inherit;
-        padding: 0.4rem 0.6rem;
-        border: 1px solid #cbd5e1;
+        padding: 0.5rem 0.6rem;
+        border: 1px solid var(--panel-border);
         border-radius: 0.375rem;
         margin-top: 0.25rem;
-        width: 8rem;
+        width: 100%;
+        max-width: 10rem;
+        min-height: 2.75rem;
+        background: #0f1828;
+        color: var(--text);
       }
       button {
         font: inherit;
-        padding: 0.5rem 1.1rem;
-        border: 1px solid #cbd5e1;
-        border-radius: 0.375rem;
-        background: #fff;
+        font-weight: 600;
+        padding: 0.65rem 1.1rem;
+        min-height: 44px;
+        min-width: 44px;
+        border: 1px solid var(--panel-border);
+        border-radius: 0.5rem;
+        background: #1c2a42;
+        color: var(--text);
         cursor: pointer;
       }
-      button:hover { background: #f8fafc; }
+      button:hover { background: #24344f; }
+      a:focus-visible, button:focus-visible, input:focus-visible {
+        outline: 3px solid var(--focus-ring);
+        outline-offset: 2px;
+      }
       .panel {
-        background: #fff;
-        border: 1px solid #e2e8f0;
-        border-radius: 0.5rem;
+        background: var(--panel-bg);
+        border: 1px solid var(--panel-border);
+        border-radius: 0.75rem;
         padding: 1rem 1.25rem;
         margin: 1rem 0;
       }
-      .status-line { font-size: 1.05rem; font-weight: 600; margin: 0.3rem 0; }
-      .meta { color: #64748b; font-size: 0.85rem; }
+      .status-line { font-size: 1.05rem; font-weight: 600; margin: 0.3rem 0; color: var(--text); }
+      .meta { color: var(--text-muted); font-size: 0.85rem; }
       .invite {
-        background: #eff6ff;
-        border: 1px dashed #93c5fd;
-        border-radius: 0.5rem;
+        background: #0f1e33;
+        border: 1px dashed #2f5578;
+        border-radius: 0.75rem;
         padding: 0.75rem 1rem;
       }
       .invite code {
         display: block;
         margin-top: 0.35rem;
         padding: 0.4rem 0.5rem;
-        background: #fff;
-        border: 1px solid #bfdbfe;
+        background: #0a1526;
+        border: 1px solid var(--panel-border);
         border-radius: 0.3rem;
-        font-size: 0.95rem;
+        font-size: 0.9rem;
+        word-break: break-all;
       }
-      .card {
+
+      /* --- Poker table ------------------------------------------------- */
+      .table-felt {
+        background: linear-gradient(180deg, var(--felt), #0e2a1e);
+        border: 1px solid var(--felt-border);
+        border-radius: 1rem;
+        padding: 1rem;
+        margin: 1rem 0;
+      }
+      .seat-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.5rem 1rem;
+        padding: 0.6rem 0.25rem;
+        border-radius: 0.6rem;
+      }
+      .seat-row.acting { background: rgba(34, 197, 94, 0.12); box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.5); }
+      .seat-identity { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; min-width: 0; }
+      .seat-name { font-weight: 700; }
+      .seat-stack { font-variant-numeric: tabular-nums; white-space: nowrap; }
+      .badge {
         display: inline-block;
-        min-width: 2rem;
-        padding: 0.15rem 0.4rem;
-        margin: 0.1rem;
-        border: 1px solid #94a3b8;
-        border-radius: 0.3rem;
-        background: #fff;
+        font-size: 0.7rem;
         font-weight: 700;
+        padding: 0.1rem 0.45rem;
+        border-radius: 999px;
+        letter-spacing: 0.03em;
+      }
+      .badge-dealer { background: #fbbf24; color: #3b2600; }
+      .badge-blind { background: #334155; color: var(--text); }
+      .badge-turn { background: var(--accent); color: var(--accent-contrast); }
+      .badge-folded { background: #4b5563; color: var(--text); }
+      .badge-allin { background: #7c3aed; color: #fff; }
+      .hole-cards, .community-cards { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+      .board-row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem 1.25rem;
+        padding: 0.75rem 0.25rem;
+        margin: 0.25rem 0;
         text-align: center;
       }
-      .card-red { color: #b91c1c; }
-      .card-hidden { background: #cbd5e1; color: #cbd5e1; }
-      .inline-form { display: inline-block; margin: 0.2rem 0.4rem 0.2rem 0; }
-      @media (max-width: 480px) {
-        main { padding: 1rem 0.75rem 2rem; }
-        .panel { padding: 0.85rem 1rem; }
+      .street-label {
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+      }
+      .pot-amount { font-weight: 700; font-size: 1.1rem; }
+      .bet-to-match { color: var(--text-muted); font-size: 0.9rem; }
+      .turn-banner {
+        text-align: center;
+        font-weight: 700;
+        padding: 0.5rem;
+        margin-top: 0.25rem;
+        border-top: 1px solid var(--felt-border);
+      }
+      .turn-banner.mine { color: var(--accent); }
+      .turn-banner.theirs { color: var(--text-muted); font-weight: 500; }
+
+      /* --- Cards -------------------------------------------------------- */
+      .card {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: clamp(2rem, 6vw, 2.75rem);
+        height: clamp(2.6rem, 8vw, 3.5rem);
+        padding: 0.15rem 0.3rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.35rem;
+        background: var(--card-bg);
+        color: var(--card-text);
+        font-weight: 800;
+        font-size: clamp(0.95rem, 3.2vw, 1.2rem);
+        text-align: center;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+      }
+      .card-red { color: var(--card-red); }
+      .card-hidden {
+        background: repeating-linear-gradient(135deg, var(--card-back-bg), var(--card-back-bg) 6px, var(--card-back-border) 6px, var(--card-back-border) 12px);
+        color: transparent;
+        border-color: var(--card-back-border);
+      }
+
+      /* --- Action palette ------------------------------------------------ */
+      .action-palette {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: flex-end;
+        margin-top: 0.75rem;
+      }
+      .inline-form { display: inline-block; }
+      .action-btn {
+        min-height: 44px;
+        min-width: 44px;
+      }
+      .action-btn.fold { border-color: var(--fold); }
+      .action-btn.primary { background: var(--accent); color: var(--accent-contrast); border-color: var(--accent); }
+      .action-btn.primary:hover { background: #16a34a; }
+      .action-btn[disabled], .action-btn[disabled]:hover {
+        background: #1a2235;
+        color: var(--text-muted);
+        border-color: var(--panel-border);
+        cursor: not-allowed;
+        opacity: 0.7;
+      }
+      .amount-group { display: flex; flex-direction: column; gap: 0.2rem; }
+      .amount-group input[type="number"] { width: 7rem; }
+
+      /* --- Hand result ---------------------------------------------------- */
+      .hand-result {
+        border: 1px solid var(--felt-border);
+        background: linear-gradient(180deg, #16211a, var(--panel-bg));
+      }
+      .hand-result .status-line { color: var(--accent); }
+
+      @media (max-width: 600px) {
+        main { padding: 0.85rem 0.6rem 2rem; }
+        .panel, .table-felt { padding: 0.75rem 0.65rem; }
+        .seat-row { flex-direction: column; align-items: flex-start; }
+        input[type="text"], input[type="number"] { max-width: 100%; }
       }
     </style>
   </head>
@@ -268,15 +409,6 @@ function renderCards(cards: readonly Card[]): string {
 
 // --- Betting controls -----------------------------------------------------
 
-const BETTING_ACTION_LABELS: Record<BettingActionType, string> = {
-  fold: "Fold",
-  check: "Check",
-  call: "Call",
-  bet: "Bet",
-  raise: "Raise",
-  all_in: "All-in",
-};
-
 // Every control here is derived entirely from getLegalActions' own result —
 // no betting rule (what's legal, minimum sizes, available amount) is
 // reimplemented here. hand_id/request_id/expected_version are embedded as
@@ -295,66 +427,139 @@ const BETTING_ACTION_LABELS: Record<BettingActionType, string> = {
 // click, back-button resubmit of the same already-rendered form) still
 // naturally reuses that form's own id, which is exactly the case this
 // mechanism is for.
+// Renders ALL of fold/check/call/all-in as a persistent 4-slot palette (plus
+// a 5th bet-or-raise slot) regardless of which are currently legal — not
+// just the legal subset — so the player can see at a glance which actions
+// exist and which are unavailable right now, rather than only ever seeing
+// whatever happens to be legal this instant. An illegal slot renders as a
+// genuinely inert `<button type="button" disabled>` with no enclosing
+// `<form>` at all, so "disabled" is never merely decorative: there is no
+// POST target for it to submit even if the disabled attribute were somehow
+// bypassed client-side. Every legal slot is still derived entirely from
+// getLegalActions' own result — no betting rule is reimplemented here.
 function renderBettingControls(table: PokerTable, hand: PersistedHand, mySeat: Seat): string {
   const legal = getLegalActions(hand.bettingState, mySeat);
   if (!legal.canAct) return "";
 
   const code = encodeURIComponent(table.code);
+  // Each legal slot gets its OWN freshly-generated request_id, not one
+  // shared across every button in this render — see the idempotency note
+  // in the module header for why reusing one id across distinct intended
+  // actions would be wrong.
   const hiddenFields = (): string => `<input type="hidden" name="hand_id" value="${hand.id}" />
         <input type="hidden" name="request_id" value="${escapeHtml(randomBytes(16).toString("hex"))}" />
         <input type="hidden" name="expected_version" value="${hand.version}" />`;
 
-  const simpleButtons = legal.actions
-    .filter((action): action is Exclude<BettingActionType, "bet" | "raise"> => action !== "bet" && action !== "raise")
-    .map((action) => {
-      const extra = action === "call" ? ` (${legal.amountToCall})` : action === "all_in" ? ` (${legal.maxCommitment})` : "";
-      return `      <form class="inline-form" method="post" action="/t/${code}/hand/action">
+  function actionSlot(
+    action: Exclude<BettingActionType, "bet" | "raise">,
+    label: string,
+    extraClass: string,
+  ): string {
+    if (!legal.actions.includes(action)) {
+      return `<button type="button" class="action-btn ${extraClass}" disabled aria-disabled="true" title="Not available right now">${escapeHtml(label)}</button>`;
+    }
+    return `      <form class="inline-form" method="post" action="/t/${code}/hand/action">
         ${hiddenFields()}
         <input type="hidden" name="action" value="${action}" />
-        <button type="submit">${escapeHtml(BETTING_ACTION_LABELS[action])}${escapeHtml(extra)}</button>
+        <button type="submit" class="action-btn ${extraClass}">${escapeHtml(label)}</button>
       </form>`;
-    })
-    .join("\n");
+  }
 
+  const foldHtml = actionSlot("fold", "Fold", "fold");
+  const checkHtml = actionSlot("check", "Check", "");
+  // The dynamic amount is only meaningful (and only shown) when the action
+  // is actually legal right now — a disabled slot's amountToCall/
+  // maxCommitment may reflect an irrelevant state (e.g. amountToCall is 0
+  // whenever Check applies instead of Call), so showing it on a disabled
+  // button would be confusing rather than clarifying.
+  const callHtml = actionSlot(
+    "call",
+    legal.actions.includes("call") ? `Call ${legal.amountToCall}` : "Call",
+    "primary",
+  );
+  const allInHtml = actionSlot(
+    "all_in",
+    legal.actions.includes("all_in") ? `All-in (${legal.maxCommitment})` : "All-in",
+    "",
+  );
+
+  // Bet and raise are mutually exclusive under the engine's own rules
+  // (raise only ever applies once a bet already exists this street), so
+  // they share one slot — whichever applies, or a disabled placeholder
+  // naming both if neither currently does (e.g. a stack too short to make
+  // any legal raise beyond all-in).
   const amountAction: "bet" | "raise" | undefined = legal.actions.includes("raise")
     ? "raise"
     : legal.actions.includes("bet")
       ? "bet"
       : undefined;
+  const amountLabel = amountAction === "raise" ? "Raise to" : "Bet to";
   const minAmount = amountAction === "raise" ? legal.minRaiseTo : legal.minBet;
-  const amountControl = amountAction
-    ? `      <form class="inline-form" method="post" action="/t/${code}/hand/action">
+  // The amount is always the player's TARGET TOTAL commitment for this
+  // street (matching poker/betting.ts's own BettingAction contract), never
+  // an incremental add-on — "Raise to" / "Bet to" makes this explicit
+  // rather than leaving an ambiguous bare number.
+  const amountHtml = amountAction
+    ? `      <form class="inline-form amount-group" method="post" action="/t/${code}/hand/action">
         ${hiddenFields()}
         <input type="hidden" name="action" value="${amountAction}" />
-        <label>${escapeHtml(BETTING_ACTION_LABELS[amountAction])} to
-          <input type="number" name="amount" min="${minAmount}" max="${legal.maxCommitment}" step="1" required />
-        </label>
-        <button type="submit">${escapeHtml(BETTING_ACTION_LABELS[amountAction])}</button>
+        <label for="amount-input-${hand.version}">${escapeHtml(amountLabel)} (total for this street, min ${minAmount}, max ${legal.maxCommitment})</label>
+        <input id="amount-input-${hand.version}" type="number" inputmode="numeric" pattern="[0-9]*" name="amount"
+               min="${minAmount}" max="${legal.maxCommitment}" step="1" required
+               placeholder="${minAmount}–${legal.maxCommitment}" />
+        <button type="submit" class="action-btn primary">${escapeHtml(amountLabel)}…</button>
       </form>`
-    : "";
+    : `<button type="button" class="action-btn" disabled aria-disabled="true" title="No bet or raise is currently legal">Bet / Raise</button>`;
 
-  return `      <div class="panel">
-        <p class="status-line">Your turn.</p>
-${simpleButtons}
-${amountControl}
+  return `      <div class="action-palette" role="group" aria-label="Your action">
+${foldHtml}
+${checkHtml}
+${callHtml}
+${amountHtml}
+${allInHtml}
       </div>`;
 }
 
 // --- Active-hand and settlement rendering -----------------------------------
 
+// The heads-up table: opponent row (far side), community cards + pot
+// (center), then the current user's own row (near side) — in that fixed
+// document order regardless of which seat number the viewer actually holds,
+// so the same markup reads correctly as "opponent, board, me" top-to-bottom
+// on both a narrow mobile stack and a wider desktop view, with no separate
+// desktop/mobile markup needed (see the .table-felt/.seat-row CSS for the
+// purely visual responsiveness).
 function renderActiveHand(table: PokerTable, hand: PersistedHand, identityId: number): string {
   const mySeat = getSeatNumberForIdentityInHand(hand.id, identityId);
   const community = getCommunityCards(hand.id);
   const seats = hand.bettingState.seats;
   const pot = seats[1].committedTotal + seats[2].committedTotal;
+  const actingSeat = hand.bettingState.actingSeat;
+  const buttonSeat = hand.bettingState.buttonSeat;
 
-  const communityHtml = community.length > 0 ? renderCards(community) : `<span class="meta">(none yet)</span>`;
+  const communityHtml =
+    community.length > 0 ? renderCards(community) : `<span class="meta">(no community cards yet)</span>`;
 
   const myHoleCards = mySeat ? (getOwnHoleCards(hand.id, identityId) ?? []) : [];
 
-  function seatLine(seatNumber: Seat): string {
+  function seatBadges(seatNumber: Seat): string {
     const seat = seats[seatNumber];
-    const isButton = hand.bettingState.buttonSeat === seatNumber;
+    const isButton = buttonSeat === seatNumber;
+    const badges: string[] = [];
+    if (isButton) badges.push(`<span class="badge badge-dealer" title="Dealer button">D</span>`);
+    badges.push(
+      isButton
+        ? `<span class="badge badge-blind" title="Small blind">SB</span>`
+        : `<span class="badge badge-blind" title="Big blind">BB</span>`,
+    );
+    if (actingSeat === seatNumber) badges.push(`<span class="badge badge-turn">ACTING</span>`);
+    if (seat.folded) badges.push(`<span class="badge badge-folded">FOLDED</span>`);
+    else if (seat.allIn) badges.push(`<span class="badge badge-allin">ALL-IN</span>`);
+    return badges.join(" ");
+  }
+
+  function seatRow(seatNumber: Seat): string {
+    const seat = seats[seatNumber];
     const isMe = mySeat === seatNumber;
     // An opponent's hole cards are NEVER rendered during an active hand,
     // regardless of anything else about this request — the only path that
@@ -366,34 +571,53 @@ function renderActiveHand(table: PokerTable, hand: PersistedHand, identityId: nu
         ? renderCards(myHoleCards)
         : `<span class="meta">(none)</span>`
       : `${renderHiddenCard()}${renderHiddenCard()}`;
-    const flags = [isButton ? "button" : "", isMe ? "you" : "", seat.folded ? "folded" : "", seat.allIn ? "all-in" : ""]
-      .filter(Boolean)
-      .join(", ");
-    return `<p class="status-line">Seat ${seatNumber}${flags ? ` (${escapeHtml(flags)})` : ""}: ${seat.stack} chips
-        — committed ${seat.committedThisStreet} this street</p>
-      <p class="meta">${cardsHtml}</p>`;
+    const rowClass = actingSeat === seatNumber ? "seat-row acting" : "seat-row";
+    return `        <div class="${rowClass}">
+          <div class="seat-identity">
+            <span class="seat-name">Seat ${seatNumber}${isMe ? " (you)" : ""}</span>
+            ${seatBadges(seatNumber)}
+          </div>
+          <div class="seat-stack">${seat.stack} chips <span class="meta">· committed ${seat.committedThisStreet} this street</span></div>
+          <div class="hole-cards">${cardsHtml}</div>
+        </div>`;
   }
 
-  const actingSeat = hand.bettingState.actingSeat;
-  const turnLine = !actingSeat
+  // Opponent (far side) always rendered first, the current user (near side)
+  // always last, regardless of which literal seat number either holds — see
+  // this function's own header comment. Falls back to a fixed 2/1 order in
+  // the practically-unreachable case mySeat is somehow undefined for a
+  // participant (every seated player is always dealt into every hand).
+  const selfSeat: Seat = mySeat ?? 1;
+  const opponentSeat: Seat = selfSeat === 1 ? 2 : 1;
+
+  const turnBannerHtml = !actingSeat
     ? ""
     : mySeat === actingSeat
-      ? ""
-      : `<p class="meta">Waiting for the other player to act...</p>`;
+      ? `<p class="turn-banner mine">Your turn — amount to call: ${getLegalActions(hand.bettingState, actingSeat).amountToCall}</p>`
+      : `<p class="turn-banner theirs">Waiting for the other player to act…</p>`;
 
   const controlsHtml = mySeat && actingSeat === mySeat ? renderBettingControls(table, hand, mySeat) : "";
 
-  return `      <section class="panel">
+  return `      <section class="table-felt" aria-label="Poker table">
         <h2>Hand #${hand.handNumber} — ${escapeHtml(hand.street)}</h2>
-        <p>Blinds: ${hand.bettingState.smallBlind} / ${hand.bettingState.bigBlind}. Pot: ${pot}.</p>
-        <p>Community cards: ${communityHtml}</p>
-        ${seatLine(1)}
-        ${seatLine(2)}
-        ${turnLine}
+${seatRow(opponentSeat)}
+        <div class="board-row">
+          <span class="street-label">${escapeHtml(hand.street)}</span>
+          <div class="community-cards">${communityHtml}</div>
+          <span class="pot-amount">Pot: ${pot}</span>
+          <span class="bet-to-match">Current bet to match: ${hand.bettingState.currentBet}</span>
+        </div>
+${seatRow(selfSeat)}
+        ${turnBannerHtml}
       </section>
 ${controlsHtml}`;
 }
 
+// Every value shown here is read straight off the already-computed
+// SettlementPlan (contestedPot/refunds/payouts/finalStacks) or
+// getShowdownHoleCards — nothing is calculated or invented client-side, and
+// a fold conceals both players' cards forever, exactly like
+// getShowdownHoleCards' own contract guarantees.
 function renderSettlementSummary(hand: PersistedHand): string {
   if (hand.status !== "settled") return "";
   const planResult = getSettlementPlanForHand(hand.id);
@@ -401,9 +625,10 @@ function renderSettlementSummary(hand: PersistedHand): string {
   const plan = planResult.plan;
   const showdownCards = getShowdownHoleCards(hand.id) ?? {};
 
+  const outcomeLabel = plan.outcome === "fold" ? "Fold" : "Showdown";
   const resultLine =
     plan.outcome === "fold"
-      ? `Seat ${plan.winningSeats[0]} won hand #${hand.handNumber} uncontested (the other player folded).`
+      ? `Seat ${plan.winningSeats[0]} won hand #${hand.handNumber} uncontested — the other player folded.`
       : plan.winningSeats.length === 2
         ? `Hand #${hand.handNumber} was a split pot — a tie (${plan.showdown?.categoryNameBySeat[1] ?? "equal hands"}).`
         : `Seat ${plan.winningSeats[0]} won hand #${hand.handNumber} at showdown with ${plan.showdown?.categoryNameBySeat[plan.winningSeats[0]!] ?? "the stronger hand"}.`;
@@ -411,13 +636,22 @@ function renderSettlementSummary(hand: PersistedHand): string {
   const revealedHtml = ([1, 2] as const)
     .map((seat) => {
       const cards = showdownCards[seat];
-      return cards && cards.length > 0 ? `<p class="meta">Seat ${seat}: ${renderCards(cards)}</p>` : "";
+      return cards && cards.length > 0
+        ? `<p class="meta">Seat ${seat}: ${renderCards(cards)}</p>`
+        : "";
     })
     .join("");
 
-  return `      <section class="panel">
+  const refundNotes = ([1, 2] as const)
+    .map((seat) => (plan.refunds[seat] > 0 ? `Seat ${seat} had ${plan.refunds[seat]} returned uncalled.` : ""))
+    .filter(Boolean)
+    .join(" ");
+
+  return `      <section class="panel hand-result">
+        <p class="meta">Hand complete — resolved by ${escapeHtml(outcomeLabel)}</p>
         <p class="status-line">${escapeHtml(resultLine)}</p>
         ${revealedHtml}
+        <p class="meta">Contested pot: ${plan.contestedPot}.${refundNotes ? ` ${escapeHtml(refundNotes)}` : ""}</p>
         <p class="meta">Stacks after this hand — seat 1: ${plan.finalStacks[1]}, seat 2: ${plan.finalStacks[2]}.</p>
       </section>`;
 }
@@ -451,7 +685,7 @@ function renderHandSection(table: PokerTable, identityId: number): string {
         <h2>Hand</h2>
         <form method="post" action="/t/${encodeURIComponent(table.code)}/hand/start">
           <input type="hidden" name="after_hand_number" value="${afterHandNumber}" />
-          <button type="submit">${latestHand ? "Start next hand" : "Start hand"}</button>
+          <button type="submit" class="action-btn primary">${latestHand ? "Start next hand" : "Start hand"}</button>
         </form>
       </section>`
     : `      <section class="panel">
@@ -482,7 +716,7 @@ function renderTableBody(c: Context, table: PokerTable): string {
     : seat2
       ? "<p>This table is full. You are not a participant.</p>"
       : `      <form method="post" action="/t/${encodeURIComponent(table.code)}/join">
-        <button type="submit">Join table</button>
+        <button type="submit" class="action-btn primary">Join table</button>
       </form>`;
 
   const statusLine =
