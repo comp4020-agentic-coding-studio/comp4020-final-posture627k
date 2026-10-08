@@ -15,6 +15,7 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --prod
 
 COPY server.ts db.ts realtime.ts README.md ./
+COPY poker ./poker
 
 ENV PORT=8080
 ENV DATA_DIR=/data

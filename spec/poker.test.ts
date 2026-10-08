@@ -298,6 +298,51 @@ it("two concurrent joins for the last seat cannot both succeed", async () => {
   expect(db.getSeatsForTable(table.id)).toHaveLength(2);
 });
 
+it("two simultaneous duplicate join requests from the same identity still produce exactly one seat and exactly one notification", async () => {
+  const host = new CookieJar();
+  const code = await createTable(host);
+
+  const guest = new CookieJar();
+  await guest.fetch("/"); // establish the guest's identity cookie before racing it against itself
+
+  const res = await openEvents(host, code);
+  const stream = sseEvents(res);
+  await stream.nextEvent(); // ready
+
+  const [resA, resB] = await Promise.all([
+    guest.fetch(`/t/${code}/join`, { method: "POST" }),
+    guest.fetch(`/t/${code}/join`, { method: "POST" }),
+  ]);
+
+  // Observed existing HTTP semantics (verified empirically, not assumed):
+  // both requests redirect with 303, neither sees a 409. Unlike the
+  // different-identity race above, joinPokerTable() has no internal await
+  // between its idempotency pre-check and its commit, so in this
+  // single-process, synchronous-SQLite architecture the first of two
+  // same-identity requests runs its whole join to completion — pre-check,
+  // insert, commit — before the second one's own pre-check ever runs; the
+  // second then correctly finds the seat the first just created and takes
+  // the idempotent "already joined" path, never reaching the INSERT that
+  // could race the UNIQUE constraint. A real double-click from one player
+  // never surfaces a misleading "table full" error — only a genuine
+  // stranger can ever receive one. No defect found; nothing changed here.
+  const statuses = [resA.status, resB.status].sort();
+  expect(statuses).toEqual([303, 303]);
+
+  const table = db.getPokerTableByCode(code)!;
+  const seats = db.getSeatsForTable(table.id);
+  expect(seats).toHaveLength(2); // exactly one seat was created for the guest, not two
+  expect(seats.filter((s) => s.seatNumber === 2)).toHaveLength(1);
+
+  const event = await stream.nextEvent();
+  expect(event.event).toBe("table_changed");
+  // Exactly one notification: the idempotent second request must not
+  // produce a second one.
+  await expect(stream.nextEvent(300)).rejects.toThrow(/no SSE event arrived/);
+
+  await stream.cancel();
+});
+
 // --- 12. No negative initial chip balance -----------------------------------
 
 it("no seat can ever hold a negative chip balance", async () => {
