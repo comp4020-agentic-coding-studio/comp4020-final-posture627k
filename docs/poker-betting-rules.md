@@ -13,14 +13,38 @@ other architecture decisions in this repository.
 Recommended Procedures section dated October 2024 and a September 6 2026
 Illustration Addendum).
 
-**Re-checked for a later "v1.1" release**, since a Slice 2 audit asked
-specifically: as of this check, the live page and the TDA forum show no
-version beyond **2026 Rules, Version 1.0** — no v1.1, no changelog, no
-revision history is published anywhere on the site. This document and the
-implementation follow **2026 Rules, Version 1.0 (Sept 7, 2026)** exactly;
-no code changes were made on account of a "later release," because none
-exists to check against. If the TDA publishes a v1.1 in the future, this
-section is the place to record what, if anything, it changes here.
+**Correction (Slice 3 audit): a v1.1 release does exist.** An earlier
+version of this document stated no v1.1 existed; that was wrong. The TDA
+forum's official version-history thread
+([topic=1759.0](https://www.pokertda.com/forum/index.php?topic=1759.0),
+posted by forum administrator MikeB, linking the official downloadable
+Longform/Short-Form DOCX/PDF documents) records:
+
+- **2026 Version 1.0** — September 6/7, 2026
+- **2026 Version 1.1** — September 21, 2026, described by that same post as
+  **"mostly minor edits and a few clarifications related to internal links
+  within the rules, procedures and addendum"** — i.e., characterized by its
+  own publisher as non-substantive.
+
+**What this implementation actually follows, and why.** The live,
+publicly-rendered rules page at
+[pokertda.com/view-poker-tda-rules](https://www.pokertda.com/view-poker-tda-rules/)
+— the only form of the rules this project has fetched and read directly —
+still displays **"2026 Rules, Version 1.0, Sept 7, 2026"** as of this
+check; it has not been re-rendered to reflect v1.1. The actual v1.1 text
+lives only in the forum's linked Dropbox DOCX/PDF documents, which were not
+fetched or read here (no tool used in this project can open a Dropbox-hosted
+binary document). Given the publisher's own description of v1.1 as minor/
+editorial, and that no discrepancy was found between the rendered page's
+Rule 36-C/45/49 text and this engine's behavior, **no verified substantive
+rule conflict was found**, so per instruction nothing in `poker/betting.ts`
+was changed. This implementation's basis is stated precisely as: **the
+`pokertda.com/view-poker-tda-rules/` page as rendered at the time of audit,
+which labels itself Version 1.0 (Sept 7, 2026)** — not a claim that v1.1
+was reviewed line-by-line, since its actual text was never accessible to
+this project. If v1.1's full text later becomes available for direct
+comparison, Rules 36-C/45/49 specifically should be re-diffed against it
+before this caveat is removed.
 
 **Correction to the task brief's rule numbers.** The task brief cited Rule
 34 (heads-up action order), Rule 43 (raise amounts), and Rule 47

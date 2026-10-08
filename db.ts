@@ -2,6 +2,18 @@ import { createHash, randomBytes } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { type Card } from "./poker/cards.ts";
+import { createDeck, shuffleDeck } from "./poker/deck.ts";
+import {
+  advanceToNextStreet as advanceBettingToNextStreet,
+  applyBettingAction,
+  initializeHeadsUpBetting,
+  type BettingAction,
+  type BettingActionRejectionReason,
+  type HeadsUpBettingState,
+  type Seat as PokerSeatNumber,
+  type Street,
+} from "./poker/betting.ts";
 
 // Schema version for this file, tracked via SQLite's own PRAGMA user_version.
 // A fresh/empty data directory starts at 0; this module brings it to
@@ -16,8 +28,9 @@ import { DatabaseSync } from "node:sqlite";
 // existing database file, and the migration chain that produces them must
 // keep working exactly as it always did, so an old deployment's data is
 // never silently reinterpreted or destroyed. Version 5 adds the poker
-// domain as a new, independent set of tables.
-const SCHEMA_VERSION = 5;
+// domain (tables/seats) as a new, independent set of tables. Version 6
+// adds persistent hand state (hands/hand players/actions) on top of it.
+const SCHEMA_VERSION = 6;
 
 // The fixed Crit 8 world layout. Defined here, ahead of the schema/migration
 // code below, because the v2 -> v3 migration can call generateWorld() (to
@@ -240,10 +253,8 @@ if (currentVersion < 4) {
 // This is the minimum persistence the poker foundation slice needs: create a
 // table, seat exactly two players, give each an initial chip stack, and
 // track whether the table is still waiting for a second player. Hand/betting
-// persistence (deck, hole cards, streets, pots, settlement) is deliberately
-// not introduced yet — see docs/poker-final-architecture.md section 6 for
-// the full proposed shape, most of which has a concrete dependency only once
-// hand play itself is implemented.
+// persistence (deck, hole cards, streets, actions) is added by the v6
+// migration below.
 if (currentVersion < 5) {
   db.exec(`
     CREATE TABLE IF NOT EXISTS poker_tables (
@@ -266,6 +277,99 @@ if (currentVersion < 5) {
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       UNIQUE (table_id, seat_number),
       UNIQUE (table_id, identity_id)
+    );
+  `);
+}
+
+// Migration: schema version 5 -> 6 (persistent hand state: deck, hole cards,
+// betting state, action history). Additive only; v1-v5 are untouched.
+//
+// Design decisions, explained in full in the final Slice 3 report:
+//
+// - The full shuffled deck order (`deck_json`) and the live betting engine
+//   state (`betting_json`, a serialized HeadsUpBettingState from
+//   poker/betting.ts) are each stored as a single JSON blob per hand. Street
+//   is also stored as its own column — duplicated with betting_json's own
+//   `street` field, but kept in sync by always writing both from the same
+//   update, and used for the one query (community-card visibility) that
+//   would otherwise require parsing betting_json just to find the street.
+// - Community cards are NOT stored separately: they are always reconstructed
+//   from `deck_json` sliced according to `street` (preflop: none; flop: the
+//   first 3 board slots; turn: +1; river: +1), which is the "reconstructable
+//   deal cursor" the brief allows as an alternative to a stored board. This
+//   avoids a second place board state could drift from the deck/street.
+// - `poker_hand_players.hole_cards_json` IS a deliberate, write-once
+//   duplication of 2 cards already present in the parent hand's deck_json —
+//   not a second source of truth in the harmful sense (it is written
+//   exactly once, at hand creation, and never updated again), but a
+//   privacy-scoping convenience: a query for "this player's own hole cards"
+//   never has to touch, deserialize, or risk logging the other 50 cards in
+//   the full deck_json. Chip ledgers (B4) are a different, mutable case —
+//   see poker_seats below.
+// - `poker_seats.chip_stack` (v5) remains the authoritative bankroll
+//   *between* hands and is not read or written while a hand is active —
+//   betting_json's own per-seat `stack`/`committedThisStreet`/
+//   `committedTotal` are the sole authoritative chip state *during* a hand.
+//   A hand's starting stacks are seeded from poker_seats.chip_stack exactly
+//   once at hand creation; writing the settled outcome back to
+//   poker_seats.chip_stack is a later (settlement) slice's job, not this
+//   one's — chip_stack is simply never touched while any hand referencing
+//   it is active, so the two are never simultaneously mutable.
+// - Exactly one active hand per table is enforced by the database itself,
+//   not just application logic: a partial unique index on
+//   `poker_hands(table_id) WHERE status = 'active'`, the same technique
+//   `one_headquarters_per_country` already uses above for an analogous
+//   one-row invariant.
+// - Idempotency (the same request_id submitted twice must never double-
+//   apply) is enforced by `UNIQUE (hand_id, request_id)` on poker_actions —
+//   a constraint, not merely a pre-check — exactly the project's existing
+//   pattern of using a database constraint as the real backstop against a
+//   race, not an in-memory or pre-transaction check alone.
+if (currentVersion < 6) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS poker_hands (
+      id INTEGER PRIMARY KEY,
+      table_id INTEGER NOT NULL REFERENCES poker_tables(id),
+      hand_number INTEGER NOT NULL CHECK (hand_number > 0),
+      button_seat INTEGER NOT NULL CHECK (button_seat IN (1, 2)),
+      small_blind INTEGER NOT NULL CHECK (small_blind > 0),
+      big_blind INTEGER NOT NULL CHECK (big_blind > small_blind),
+      street TEXT NOT NULL CHECK (street IN ('preflop', 'flop', 'turn', 'river')),
+      status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'settled')),
+      version INTEGER NOT NULL CHECK (version > 0),
+      deck_json TEXT NOT NULL,
+      betting_json TEXT NOT NULL,
+      settled_at TEXT,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      UNIQUE (table_id, hand_number)
+    );
+
+    CREATE UNIQUE INDEX IF NOT EXISTS one_active_hand_per_table
+      ON poker_hands(table_id)
+      WHERE status = 'active';
+
+    CREATE TABLE IF NOT EXISTS poker_hand_players (
+      id INTEGER PRIMARY KEY,
+      hand_id INTEGER NOT NULL REFERENCES poker_hands(id),
+      seat_number INTEGER NOT NULL CHECK (seat_number IN (1, 2)),
+      identity_id INTEGER NOT NULL REFERENCES identities(id),
+      hole_cards_json TEXT NOT NULL,
+      UNIQUE (hand_id, seat_number),
+      UNIQUE (hand_id, identity_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS poker_actions (
+      id INTEGER PRIMARY KEY,
+      hand_id INTEGER NOT NULL REFERENCES poker_hands(id),
+      seat_number INTEGER NOT NULL CHECK (seat_number IN (1, 2)),
+      request_id TEXT NOT NULL,
+      expected_version INTEGER NOT NULL CHECK (expected_version > 0),
+      action_type TEXT NOT NULL CHECK (action_type IN ('fold', 'check', 'call', 'bet', 'raise', 'all_in')),
+      amount INTEGER CHECK (amount IS NULL OR amount >= 0),
+      resulting_version INTEGER NOT NULL CHECK (resulting_version > 0),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      UNIQUE (hand_id, request_id),
+      UNIQUE (hand_id, resulting_version)
     );
   `);
 }
@@ -522,6 +626,380 @@ export function joinPokerTable(tableId: number, identityId: number): JoinPokerTa
     if (isUniqueConstraintViolation(err)) {
       return { ok: false, reason: "full" };
     }
+    throw err;
+  }
+}
+
+// --- Poker domain: persistent hand state (Slice 3) ---------------------------
+// Builds on the pure engine in poker/betting.ts and the card primitives in
+// poker/cards.ts and poker/deck.ts. This module never implements any poker
+// rule itself — it only serializes/deserializes that engine's own state and
+// enforces the transactional/authorization/idempotency contract around it.
+
+// Fixed deck-slot convention for a heads-up hand: the first 4 cards of the
+// shuffled deck are hole cards (button's pair, then the other seat's pair);
+// the next cards are the community cards, revealed progressively by street.
+// This is a simplification — real dealing interleaves single cards and uses
+// burn cards — justified because the full order is already hidden server-
+// side only; which fixed slots are "whose" has no gameplay consequence and
+// burn cards exist purely to protect a *physical* deck from being tracked.
+const HOLE_CARD_SLOTS: Readonly<Record<PokerSeatNumber, readonly [number, number]>> = {
+  1: [0, 1],
+  2: [2, 3],
+};
+const BOARD_START_INDEX = 4;
+const BOARD_CARD_COUNT_BY_STREET: Readonly<Record<Street, number>> = {
+  preflop: 0,
+  flop: 3,
+  turn: 4,
+  river: 5,
+};
+
+export interface PersistedHand {
+  readonly id: number;
+  readonly tableId: number;
+  readonly handNumber: number;
+  readonly buttonSeat: PokerSeatNumber;
+  readonly street: Street;
+  readonly status: "active" | "settled";
+  readonly version: number;
+  readonly bettingState: HeadsUpBettingState;
+}
+
+interface HandRow {
+  id: number;
+  table_id: number;
+  hand_number: number;
+  button_seat: number;
+  street: string;
+  status: string;
+  version: number;
+  deck_json: string;
+  betting_json: string;
+}
+
+function toPersistedHand(row: HandRow): PersistedHand {
+  return {
+    id: row.id,
+    tableId: row.table_id,
+    handNumber: row.hand_number,
+    buttonSeat: row.button_seat as PokerSeatNumber,
+    street: row.street as Street,
+    status: row.status as "active" | "settled",
+    version: row.version,
+    bettingState: JSON.parse(row.betting_json) as HeadsUpBettingState,
+  };
+}
+
+const HAND_ROW_COLUMNS =
+  "id, table_id, hand_number, button_seat, street, status, version, deck_json, betting_json";
+
+function getHandRowById(handId: number): HandRow | undefined {
+  return db.prepare(`SELECT ${HAND_ROW_COLUMNS} FROM poker_hands WHERE id = ?`).get(handId) as
+    | HandRow
+    | undefined;
+}
+
+export function getHandById(handId: number): PersistedHand | undefined {
+  const row = getHandRowById(handId);
+  return row ? toPersistedHand(row) : undefined;
+}
+
+export function getActiveHandForTable(tableId: number): PersistedHand | undefined {
+  const row = db
+    .prepare(`SELECT ${HAND_ROW_COLUMNS} FROM poker_hands WHERE table_id = ? AND status = 'active'`)
+    .get(tableId) as HandRow | undefined;
+  return row ? toPersistedHand(row) : undefined;
+}
+
+export type CreateHandResult =
+  | { readonly ok: true; readonly hand: PersistedHand }
+  | { readonly ok: false; readonly reason: "table_not_ready" | "hand_already_active" };
+
+// Creates a brand-new hand for `tableId`: determines the next hand number
+// and button seat (alternating from hand 1 = seat 1, a simple fixed
+// rotation — full next-hand orchestration beyond this is a later slice's
+// job), seeds each seat's starting stack from poker_seats.chip_stack
+// *as it stands right now* (never touched again while this hand is active —
+// see the v5 -> v6 migration comment for why), generates a fresh
+// cryptographically-secure shuffled deck, and persists the initial betting
+// state and each player's hole cards atomically. The partial unique index
+// `one_active_hand_per_table` is the actual backstop against two concurrent
+// calls both creating a hand for the same table — this function catches
+// that constraint violation rather than relying only on a pre-check.
+export function createPokerHand(tableId: number): CreateHandResult {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const table = db
+      .prepare("SELECT status, small_blind, big_blind FROM poker_tables WHERE id = ?")
+      .get(tableId) as { status: string; small_blind: number; big_blind: number } | undefined;
+
+    if (!table || table.status !== "ready") {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "table_not_ready" };
+    }
+
+    const seatRows = db
+      .prepare("SELECT seat_number, identity_id, chip_stack FROM poker_seats WHERE table_id = ?")
+      .all(tableId) as { seat_number: number; identity_id: number; chip_stack: number }[];
+    const seat1 = seatRows.find((s) => s.seat_number === 1);
+    const seat2 = seatRows.find((s) => s.seat_number === 2);
+    if (!seat1 || !seat2) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "table_not_ready" };
+    }
+
+    const lastHandNumberRow = db
+      .prepare("SELECT MAX(hand_number) AS maxHandNumber FROM poker_hands WHERE table_id = ?")
+      .get(tableId) as { maxHandNumber: number | null };
+    const handNumber = (lastHandNumberRow.maxHandNumber ?? 0) + 1;
+    const buttonSeat: PokerSeatNumber = handNumber % 2 === 1 ? 1 : 2;
+
+    const deck = shuffleDeck(createDeck());
+    const bettingState = initializeHeadsUpBetting({
+      buttonSeat,
+      smallBlind: table.small_blind,
+      bigBlind: table.big_blind,
+      stacks: { 1: seat1.chip_stack, 2: seat2.chip_stack },
+    });
+
+    const info = db
+      .prepare(
+        `INSERT INTO poker_hands
+           (table_id, hand_number, button_seat, small_blind, big_blind, street, status, version, deck_json, betting_json)
+         VALUES (?, ?, ?, ?, ?, 'preflop', 'active', ?, ?, ?)`,
+      )
+      .run(
+        tableId,
+        handNumber,
+        buttonSeat,
+        table.small_blind,
+        table.big_blind,
+        bettingState.version,
+        JSON.stringify(deck),
+        JSON.stringify(bettingState),
+      );
+    const handId = Number(info.lastInsertRowid);
+
+    const insertHandPlayer = db.prepare(
+      "INSERT INTO poker_hand_players (hand_id, seat_number, identity_id, hole_cards_json) VALUES (?, ?, ?, ?)",
+    );
+    for (const seat of [seat1, seat2]) {
+      const [a, b] = HOLE_CARD_SLOTS[seat.seat_number as PokerSeatNumber];
+      const holeCards = [deck[a], deck[b]];
+      insertHandPlayer.run(handId, seat.seat_number, seat.identity_id, JSON.stringify(holeCards));
+    }
+
+    db.exec("COMMIT");
+    return { ok: true, hand: getHandById(handId)! };
+  } catch (err) {
+    db.exec("ROLLBACK");
+    if (isUniqueConstraintViolation(err)) {
+      return { ok: false, reason: "hand_already_active" };
+    }
+    throw err;
+  }
+}
+
+// Resolves which seat (if any) `identityId` holds in this specific hand —
+// captured at hand creation, so this is authoritative for the hand even if
+// table seating were ever to change later. Used both for authorization (is
+// this identity even a player in this hand) and to look up their own hole
+// cards, never anyone else's.
+export function getSeatNumberForIdentityInHand(handId: number, identityId: number): PokerSeatNumber | undefined {
+  const row = db
+    .prepare("SELECT seat_number FROM poker_hand_players WHERE hand_id = ? AND identity_id = ?")
+    .get(handId, identityId) as { seat_number: number } | undefined;
+  return row ? (row.seat_number as PokerSeatNumber) : undefined;
+}
+
+// Returns only the calling identity's own hole cards for this hand — never
+// the deck, never the other seat's cards. There is no function in this
+// module that returns another player's hole cards or the raw deck_json to
+// anything outside this file.
+export function getOwnHoleCards(handId: number, identityId: number): Card[] | undefined {
+  const row = db
+    .prepare("SELECT hole_cards_json FROM poker_hand_players WHERE hand_id = ? AND identity_id = ?")
+    .get(handId, identityId) as { hole_cards_json: string } | undefined;
+  return row ? (JSON.parse(row.hole_cards_json) as Card[]) : undefined;
+}
+
+// Community cards are always public once dealt and are reconstructed from
+// the deck order and the hand's current street — there is no separately
+// stored board that could drift from either.
+export function getCommunityCards(handId: number): Card[] {
+  const row = db.prepare("SELECT street, deck_json FROM poker_hands WHERE id = ?").get(handId) as
+    | { street: string; deck_json: string }
+    | undefined;
+  if (!row) return [];
+  const deck = JSON.parse(row.deck_json) as Card[];
+  const count = BOARD_CARD_COUNT_BY_STREET[row.street as Street];
+  return deck.slice(BOARD_START_INDEX, BOARD_START_INDEX + count);
+}
+
+export interface PersistedAction {
+  readonly handId: number;
+  readonly seatNumber: PokerSeatNumber;
+  readonly requestId: string;
+  readonly expectedVersion: number;
+  readonly actionType: BettingAction["type"];
+  readonly amount: number | null;
+  readonly resultingVersion: number;
+  readonly createdAt: string;
+}
+
+export function getActionHistory(handId: number): PersistedAction[] {
+  const rows = db
+    .prepare(
+      `SELECT hand_id AS handId, seat_number AS seatNumber, request_id AS requestId,
+              expected_version AS expectedVersion, action_type AS actionType, amount,
+              resulting_version AS resultingVersion, created_at AS createdAt
+       FROM poker_actions WHERE hand_id = ? ORDER BY resulting_version ASC`,
+    )
+    .all(handId) as unknown as PersistedAction[];
+  return rows;
+}
+
+export type ApplyPersistedActionResult =
+  | { readonly ok: true; readonly duplicate: boolean; readonly hand: PersistedHand }
+  | {
+      readonly ok: false;
+      readonly reason: BettingActionRejectionReason | "hand_not_active" | "not_a_player" | "request_id_conflict";
+      readonly hand: PersistedHand | undefined;
+    };
+
+export interface SubmitBettingActionParams {
+  readonly handId: number;
+  readonly identityId: number;
+  readonly requestId: string;
+  readonly expectedVersion: number;
+  readonly action: BettingAction;
+}
+
+// The full exactly-once, transactional action contract: resolves identity ->
+// seat from the trusted server-side identity, re-checks authorization and
+// turn order fresh inside the transaction, treats a repeated request_id as
+// an idempotent no-op rather than re-applying or erroring, validates and
+// applies the action through the pure betting engine (never reimplementing
+// its rules here), and — only if every check passes — updates the hand row
+// and appends exactly one action record atomically. A rejection at any
+// step rolls back with no partial chip deduction and no action row.
+//
+// Deliberately does not publish any realtime notification — that is the
+// HTTP route layer's job, after this transaction has already committed, per
+// this project's existing publish-after-commit discipline.
+export function submitBettingAction(params: SubmitBettingActionParams): ApplyPersistedActionResult {
+  const { handId, identityId, requestId, expectedVersion, action } = params;
+
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const row = getHandRowById(handId);
+    if (!row || row.status !== "active") {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "hand_not_active", hand: row ? toPersistedHand(row) : undefined };
+    }
+
+    const seat = getSeatNumberForIdentityInHand(handId, identityId);
+    if (seat === undefined) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "not_a_player", hand: toPersistedHand(row) };
+    }
+
+    const existingAction = db
+      .prepare(
+        `SELECT seat_number, expected_version, action_type, amount, resulting_version
+         FROM poker_actions WHERE hand_id = ? AND request_id = ?`,
+      )
+      .get(handId, requestId) as
+      | { seat_number: number; expected_version: number; action_type: string; amount: number | null; resulting_version: number }
+      | undefined;
+    if (existingAction) {
+      // A request_id is only ever an idempotent replay of the EXACT same
+      // request: same hand (implicit in the query), same authenticated
+      // player, same action type/amount, and the same expected_version it
+      // was originally submitted with. Any difference means this request_id
+      // was reused for genuinely different semantic content — a conflict to
+      // reject outright, not a harmless duplicate to silently approve. This
+      // is what stops a reused id from masking, say, a different player's
+      // action or a different wager amount as "already applied, no-op."
+      const sameContent =
+        existingAction.seat_number === seat &&
+        existingAction.action_type === action.type &&
+        existingAction.amount === (action.amount ?? null) &&
+        existingAction.expected_version === expectedVersion;
+
+      db.exec("ROLLBACK");
+      if (!sameContent) {
+        return { ok: false, reason: "request_id_conflict", hand: toPersistedHand(row) };
+      }
+      // A true idempotent replay: the same request was already applied
+      // exactly once before. Return the current truth, apply nothing new,
+      // and never charge chips a second time for the same request.
+      return { ok: true, duplicate: true, hand: toPersistedHand(row) };
+    }
+
+    const currentState = JSON.parse(row.betting_json) as HeadsUpBettingState;
+    const result = applyBettingAction(currentState, seat, action, { expectedVersion });
+
+    if (!result.ok) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: result.reason, hand: toPersistedHand(row) };
+    }
+
+    db.prepare(
+      `UPDATE poker_hands SET street = ?, version = ?, betting_json = ?
+       WHERE id = ? AND version = ?`,
+    ).run(result.state.street, result.state.version, JSON.stringify(result.state), handId, row.version);
+
+    db.prepare(
+      `INSERT INTO poker_actions
+         (hand_id, seat_number, request_id, expected_version, action_type, amount, resulting_version)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).run(handId, seat, requestId, expectedVersion, action.type, action.amount ?? null, result.state.version);
+
+    db.exec("COMMIT");
+    return { ok: true, duplicate: false, hand: getHandById(handId)! };
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+export type AdvanceHandStreetResult =
+  | { readonly ok: true; readonly hand: PersistedHand }
+  | { readonly ok: false; readonly reason: "hand_not_active" | "betting_not_complete" };
+
+// Transactionally advances a hand to its next street once betting on the
+// current street is complete, resetting the pure engine's own street-
+// specific fields (see poker/betting.ts's advanceToNextStreet) while
+// preserving total hand contributions. This does not deal or reveal any
+// card by itself — community cards remain purely a read-time
+// reconstruction from deck_json + street (see getCommunityCards above).
+export function advanceHandStreet(handId: number, nextStreet: Street): AdvanceHandStreetResult {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const row = getHandRowById(handId);
+    if (!row || row.status !== "active") {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "hand_not_active" };
+    }
+
+    const currentState = JSON.parse(row.betting_json) as HeadsUpBettingState;
+    if (!currentState.isBettingComplete) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "betting_not_complete" };
+    }
+
+    const newState = advanceBettingToNextStreet(currentState, nextStreet);
+    db.prepare(
+      `UPDATE poker_hands SET street = ?, version = ?, betting_json = ?
+       WHERE id = ? AND version = ?`,
+    ).run(newState.street, newState.version, JSON.stringify(newState), handId, row.version);
+
+    db.exec("COMMIT");
+    return { ok: true, hand: getHandById(handId)! };
+  } catch (err) {
+    db.exec("ROLLBACK");
     throw err;
   }
 }
