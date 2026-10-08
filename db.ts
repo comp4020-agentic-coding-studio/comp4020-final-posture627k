@@ -714,9 +714,27 @@ export function getActiveHandForTable(tableId: number): PersistedHand | undefine
   return row ? toPersistedHand(row) : undefined;
 }
 
+// The most recent hand for a table regardless of status — unlike
+// getActiveHandForTable, this remains defined after a hand auto-settles
+// (status transitions to 'settled' the instant a terminal action commits,
+// so "active" alone cannot be used to show a just-finished result, on the
+// very same page load or on a later refresh). `hand_number` is unique per
+// table and strictly increasing (see createPokerHand), so ordering by it
+// deterministically identifies the latest hand without relying on
+// `created_at` wall-clock ordering.
+export function getLatestHandForTable(tableId: number): PersistedHand | undefined {
+  const row = db
+    .prepare(`SELECT ${HAND_ROW_COLUMNS} FROM poker_hands WHERE table_id = ? ORDER BY hand_number DESC LIMIT 1`)
+    .get(tableId) as HandRow | undefined;
+  return row ? toPersistedHand(row) : undefined;
+}
+
 export type CreateHandResult =
   | { readonly ok: true; readonly hand: PersistedHand }
-  | { readonly ok: false; readonly reason: "table_not_ready" | "hand_already_active" | "insufficient_chips" };
+  | {
+      readonly ok: false;
+      readonly reason: "table_not_ready" | "hand_already_active" | "insufficient_chips" | "stale_hand_state";
+    };
 
 // Creates a brand-new hand for `tableId`: determines the next hand number
 // and button seat (alternating from hand 1 = seat 1, a simple fixed
@@ -727,15 +745,37 @@ export type CreateHandResult =
 // cryptographically-secure shuffled deck, and persists the initial betting
 // state and each player's hole cards atomically. The partial unique index
 // `one_active_hand_per_table` is the actual backstop against two concurrent
-// calls both creating a hand for the same table — this function catches
-// that constraint violation rather than relying only on a pre-check.
+// calls both creating a hand for the same table while the first stays
+// active — this function catches that constraint violation rather than
+// relying only on a pre-check.
+//
+// `expectedLatestHandNumber`, when given, additionally guards against a
+// narrower race the partial index alone cannot catch: if the hand this call
+// creates immediately auto-settles within this very transaction (an
+// extreme-short-stack blind post can already be a terminal state — see the
+// advanceAndSettleIfNeeded call below), the row's status flips to 'settled'
+// *before* COMMIT, so `one_active_hand_per_table` no longer blocks a second,
+// closely-following call (e.g. a double-submitted "start hand" click) from
+// creating a genuine extra hand the user never asked for. Passing the
+// caller's own last-observed hand_number (0 if none) closes that window
+// with the same optimistic-concurrency idea already used for betting
+// actions' expected_version: if the table's actual latest hand_number has
+// moved on from what the caller last saw, by the time this call runs,
+// something else already created the hand the caller intended to trigger —
+// so this call is a no-op, not a second hand. Every existing call site
+// (including every test fixture) omits it and gets the previous behavior
+// unchanged (no check performed) — only the HTTP route populates it.
 // `overrideDeck` exists only so this module's own tests can supply a fixed,
 // known deck order for deterministic, reproducible fixtures (e.g. forcing a
 // specific showdown outcome or a specific short-all-in scenario) — every
 // real caller omits it and gets the secure default
 // (shuffleDeck(createDeck())), exactly like poker/deck.ts's own injectable-
 // RNG parameter never gets overridden outside that module's tests either.
-export function createPokerHand(tableId: number, overrideDeck?: Card[]): CreateHandResult {
+export function createPokerHand(
+  tableId: number,
+  overrideDeck?: Card[],
+  expectedLatestHandNumber?: number,
+): CreateHandResult {
   db.exec("BEGIN IMMEDIATE");
   try {
     const table = db
@@ -770,7 +810,14 @@ export function createPokerHand(tableId: number, overrideDeck?: Card[]): CreateH
     const lastHandNumberRow = db
       .prepare("SELECT MAX(hand_number) AS maxHandNumber FROM poker_hands WHERE table_id = ?")
       .get(tableId) as { maxHandNumber: number | null };
-    const handNumber = (lastHandNumberRow.maxHandNumber ?? 0) + 1;
+    const currentLatestHandNumber = lastHandNumberRow.maxHandNumber ?? 0;
+
+    if (expectedLatestHandNumber !== undefined && currentLatestHandNumber !== expectedLatestHandNumber) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "stale_hand_state" };
+    }
+
+    const handNumber = currentLatestHandNumber + 1;
     const buttonSeat: PokerSeatNumber = handNumber % 2 === 1 ? 1 : 2;
 
     const deck = overrideDeck ?? shuffleDeck(createDeck());
@@ -1226,4 +1273,32 @@ export function getSettlementPlanForHand(handId: number): GetSettlementPlanResul
   const communityCards = getCommunityCardsFromRow(row);
   const result = settleHand({ bettingState: state, holeCards, communityCards });
   return result.ok ? { ok: true, plan: result.plan } : { ok: false, reason: result.reason };
+}
+
+// The one safe way to reveal BOTH players' hole cards for a showdown
+// display: returns undefined for anything but an already-settled hand (an
+// active hand reveals nothing here, full stop), and even once settled,
+// never includes a seat that folded — a fold conceals a player's cards
+// forever, win or lose, exactly like at a real table. An uncontested
+// (fold) win reveals nobody's cards: there was no showdown to reveal.
+// Internal hole_cards_json rows are still only ever read here and in
+// getOwnHoleCards/getHoleCardsForSettlement — never returned as raw rows.
+export function getShowdownHoleCards(handId: number): Partial<Record<PokerSeatNumber, Card[]>> | undefined {
+  const row = getHandRowById(handId);
+  if (!row || row.status !== "settled") return undefined;
+
+  const state = JSON.parse(row.betting_json) as HeadsUpBettingState;
+  const revealed: Partial<Record<PokerSeatNumber, Card[]>> = {};
+  if (state.handOutcome === "uncontested") return revealed; // fold win: nothing to reveal
+
+  const rows = db
+    .prepare("SELECT seat_number, hole_cards_json FROM poker_hand_players WHERE hand_id = ?")
+    .all(handId) as { seat_number: number; hole_cards_json: string }[];
+  for (const r of rows) {
+    const seat = r.seat_number as PokerSeatNumber;
+    if (!state.seats[seat].folded) {
+      revealed[seat] = JSON.parse(r.hole_cards_json) as Card[];
+    }
+  }
+  return revealed;
 }

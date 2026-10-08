@@ -3,7 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import type { Card } from "../poker/cards.ts";
+import { cardKey, type Card } from "../poker/cards.ts";
+import { createDeck } from "../poker/deck.ts";
 
 // Isolated-database, db.ts-direct tests — like spec/migration.test.ts and
 // the original spec/settlement.test.ts, these exercise the persistence
@@ -703,4 +704,131 @@ it("19. an action history record corresponds exactly to the committed state tran
     amount: 25,
     resultingVersion: result.hand.version,
   });
+});
+
+// --- B1: createPokerHand's expectedLatestHandNumber guard (Slice 5B audit) --
+//
+// Found during the Slice 5B independent audit: a hand created by
+// createPokerHand can auto-settle within its own creation transaction (an
+// extreme-short-stack blind post can already leave no decision for either
+// seat — see poker/betting.ts's isSettled). The moment that happens, the
+// row's status flips from 'active' to 'settled' *before* COMMIT, so the
+// `one_active_hand_per_table` partial unique index (WHERE status='active')
+// no longer blocks a second, closely-following createPokerHand call for the
+// same table — a double-submitted "start hand" click could silently create
+// a second, genuinely distinct hand the user never intended. These tests
+// reproduce that exact scenario and confirm expectedLatestHandNumber closes
+// it without blocking a legitimate subsequent hand.
+
+function buildFixedDeck(firstCards: Card[]): Card[] {
+  const used = new Set(firstCards.map(cardKey));
+  const rest = createDeck().filter((card) => !used.has(cardKey(card)));
+  return [...firstCards, ...rest];
+}
+
+// Seat 1 (button, posts the small blind) gets pocket aces and wins outright
+// — chosen deliberately so seat 1's stack survives the forced short all-in
+// at a positive balance (6, not 0), which is exactly the condition under
+// which the pre-fix code could create a second hand.
+const SHORT_STACK_SEAT1_WINS_DECK = buildFixedDeck([
+  { rank: 14, suit: "hearts" },
+  { rank: 14, suit: "spades" }, // seat 1 hole
+  { rank: 7, suit: "clubs" },
+  { rank: 6, suit: "diamonds" }, // seat 2 hole
+  { rank: 13, suit: "clubs" },
+  { rank: 13, suit: "diamonds" },
+  { rank: 9, suit: "hearts" }, // flop
+  { rank: 4, suit: "spades" }, // turn
+  { rank: 2, suit: "clubs" }, // river
+]);
+
+function setSeatStack(tableId: number, seatNumber: 1 | 2, chipStack: number): void {
+  const raw = openRaw();
+  raw.prepare("UPDATE poker_seats SET chip_stack = ? WHERE table_id = ? AND seat_number = ?").run(
+    chipStack,
+    tableId,
+    seatNumber,
+  );
+  raw.close();
+}
+
+it("B1.1 a hand whose own creation immediately auto-settles can still leave the short stack with a positive balance", () => {
+  const { tableId } = setUpReadyTable(db);
+  setSeatStack(tableId, 1, 3); // below the table's small blind (5): forced all-in on the blind post alone
+  setSeatStack(tableId, 2, 1997);
+
+  const created = db.createPokerHand(tableId, SHORT_STACK_SEAT1_WINS_DECK);
+  expect(created.ok).toBe(true);
+  if (!created.ok) return;
+  expect(created.hand.status).toBe("settled"); // settled within its own creation transaction
+
+  const seats = db.getSeatsForTable(tableId);
+  expect(seats.find((s) => s.seatNumber === 1)?.chipStack).toBeGreaterThan(0); // survived, didn't bust to 0
+});
+
+it("B1.2 without expectedLatestHandNumber, a closely-following call creates a real second hand (confirms the race is reachable)", () => {
+  const { tableId } = setUpReadyTable(db);
+  setSeatStack(tableId, 1, 3);
+  setSeatStack(tableId, 2, 1997);
+
+  const first = db.createPokerHand(tableId, SHORT_STACK_SEAT1_WINS_DECK);
+  expect(first.ok).toBe(true);
+
+  // No expectedLatestHandNumber passed: the partial unique index alone
+  // cannot catch this, because the first hand is already 'settled' by the
+  // time this second call runs.
+  const second = db.createPokerHand(tableId);
+  expect(second.ok).toBe(true); // demonstrates the pre-guard behavior
+
+  const raw = openRaw();
+  const rows = raw.prepare("SELECT hand_number FROM poker_hands WHERE table_id = ? ORDER BY hand_number").all(
+    tableId,
+  ) as { hand_number: number }[];
+  raw.close();
+  expect(rows.map((r) => r.hand_number)).toEqual([1, 2]); // two hands from what should be one intended start
+});
+
+it("B1.3 expectedLatestHandNumber rejects a stale (double-submitted) hand-start request as a no-op", () => {
+  const { tableId } = setUpReadyTable(db);
+  setSeatStack(tableId, 1, 3);
+  setSeatStack(tableId, 2, 1997);
+
+  // Simulates the real UI: the page was rendered with no hand yet existing,
+  // so the hidden after_hand_number field says 0.
+  const first = db.createPokerHand(tableId, SHORT_STACK_SEAT1_WINS_DECK, 0);
+  expect(first.ok).toBe(true);
+
+  // A double-submit of the exact same original request still claims
+  // after_hand_number=0 (it's the same stale render).
+  const retry = db.createPokerHand(tableId, undefined, 0);
+  expect(retry.ok).toBe(false);
+  if (retry.ok) return;
+  expect(retry.reason).toBe("stale_hand_state");
+
+  const raw = openRaw();
+  const rows = raw.prepare("SELECT hand_number FROM poker_hands WHERE table_id = ?").all(tableId) as {
+    hand_number: number;
+  }[];
+  raw.close();
+  expect(rows).toHaveLength(1); // no second hand was created
+});
+
+it("B1.4 a legitimate next-hand start (correct expectedLatestHandNumber) still succeeds after the guard rejects a stale retry", () => {
+  const { tableId } = setUpReadyTable(db);
+  setSeatStack(tableId, 1, 3);
+  setSeatStack(tableId, 2, 1997);
+
+  const first = db.createPokerHand(tableId, SHORT_STACK_SEAT1_WINS_DECK, 0);
+  expect(first.ok).toBe(true);
+
+  const staleRetry = db.createPokerHand(tableId, undefined, 0);
+  expect(staleRetry.ok).toBe(false);
+
+  // A genuinely new "start next hand" click, rendered after observing hand
+  // #1's settlement, correctly claims after_hand_number=1.
+  const legitimate = db.createPokerHand(tableId, undefined, 1);
+  expect(legitimate.ok).toBe(true);
+  if (!legitimate.ok) return;
+  expect(legitimate.hand.handNumber).toBe(2);
+  expect(legitimate.hand.status).toBe("active");
 });
