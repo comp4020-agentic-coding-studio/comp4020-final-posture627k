@@ -1,134 +1,84 @@
-# Grid Strategy (working title)
+# Poker Lab
 
-A small-scale, grid-based multiplayer strategy war game. It takes cues from
-the strategic layer of RTS games, but it is not a unit-by-unit real-time
-simulation: armies are formations occupying grid tiles, not individually
-simulated soldiers.
+A multiplayer, real-time, persistent, non-cash Texas Hold'em poker
+application. Players play with virtual chips only: no real money, no
+purchases, no prizes, no cash-out, and no payments or wagering integration
+of any kind.
 
-This is a Crit 8 vertical slice: the proof-of-life slice described in the
-"Crit 8 scope" section below is now implemented and working end-to-end. Most
-of the rest of what's described in this document — armies, combat, research,
-alternative victory conditions, and larger match configurations — is still
-where the project is going, not what's built yet.
+This project was previously a grid-based multiplayer strategy war game
+(documented in `docs/crit-8-architecture.md` and `docs/crit-9-architecture.md`,
+and in the Crit 8 reflection). That product is cancelled by explicit decision
+— see `docs/poker-final-architecture.md` for the pivot's architecture
+decision record. Its infrastructure (identity, persistence, transactions,
+realtime transport) is reused for Poker Lab; its gameplay is not.
+
+This is an early foundation slice, not a playable game yet. What's
+implemented now is covered under "Foundation slice scope" below. Dealing
+cards, betting, hands and chip settlement are not implemented yet.
 
 ## Who it's for
 
-Small groups of players — a pair, a couple of pairs, maybe three teams of two
-— who want a strategy match that rewards coordinating with each other, not
-just playing alongside each other. Teams are made of multiple countries
-rather than one country per team, which only works if the players on a team
-actually coordinate. No in-game communication mechanism has been decided yet.
+Two players who want to play heads-up Texas Hold'em together online, for
+fun, with no stakes attached.
 
-## What players do
+## What players will do (once complete)
 
-Each player controls one country: its headquarters, its buildings, its
-resources, its research, its armies, its territory. Players place buildings,
-produce resources, build up armies, and move those armies as formations on a
-shared grid. Decisions play out over a persistent, ongoing match rather than
-a single short real-time skirmish.
+Create a table, invite another player, join and take a seat, start a hand,
+receive private hole cards, post blinds, bet through preflop/flop/turn/
+river, reach a showdown or an uncontested win, settle chips, and start
+another hand — all server-authoritative and persistent, with each player
+seeing only their own private information.
 
-## Why multiplayer/co-presence matters here
+## Foundation slice scope
 
-The team structure — multiple countries, one shared win/loss outcome — is the
-point of the game, not a mode bolted onto a single-player design. Teammates
-can see each other's armies exactly, which is deliberate: it removes
-uncertainty inside a team so the coordination problem is about deciding what
-to do together, not about guessing what a teammate has. The difficulty is
-meant to come from the players, not from the game hiding information within
-a team.
+This stage implements:
 
-## What "good" means for this game
+1. a landing page describing Poker Lab, with no war-game interface or copy
+2. create a poker table
+3. join an existing poker table by its code
+4. exactly two seats per table, each tied to a distinct anonymous identity
+5. an identity cannot occupy both seats, and a seat cannot be claimed twice
+6. each seated player starts with a non-purchasable virtual chip stack
+7. a table's lifecycle status (waiting for a second player, or both seats
+   filled)
+8. real-time updates: a player joining is reflected in the other player's
+   open browser tab without a reload
+9. persistent table/seat state that survives a server restart
+10. a responsive layout usable on both desktop and mobile
 
-A good match is one where:
+## Non-goals for this slice
 
-- meaningful strategic benefit comes from dividing responsibility (who builds
-  what, who defends what, who watches which front) among teammates, rather
-  than from any one player trying to do everything alone
-- economic, research and military decisions on one side of the map have
-  visible consequences for teammates elsewhere
-- information sharing is necessary — allies can see the full picture, but
-  someone has to notice and act on what they see
-- the strategic layer (economy, research, territory, formation movement)
-  carries the game, rather than micromanagement of individual units
+Explicitly not implemented yet:
 
-This is a design goal, not a measured outcome. Nothing here claims the game
-has been shown to teach or improve any of these skills, only that the rules
-are built to require and exercise them during play.
+- dealing cards, hole cards, or any hand state
+- blinds, betting, folding, calling, raising, or any wagering action
+- showdown, hand evaluation, or chip settlement
+- reconnect/recovery of in-progress hand state (there is no hand state yet)
+- more than two seats per table
+- side pots or any multiplayer-specific pot logic
+- hand history, replay, or statistics
 
-## Grid formations instead of per-unit RTS simulation
+## Explicit exclusions (always out of scope)
 
-Armies are represented as formations occupying tiles on a grid, not as
-individually simulated units. This is a deliberate scope decision: a
-strategic layer where a handful of formations matter more than unit-level
-micromanagement is more playable at a team-strategy scale, and it keeps the
-server-authoritative simulation tractable. Formation mechanics such as
-splitting, merging, tile capacity and retreat are part of the intended
-direction but are not implemented in Crit 8 (see below).
+- real-money betting, purchased chips, cryptocurrency, or redeemable prizes
+- player-to-player transfers of real-world value
+- AI poker opponents
+- tournament systems or public gambling leaderboards
+- payment or wagering integrations
 
-## Lobby: consent-based match configuration
+## Defaults used in this slice
 
-Before a match starts, a host can propose and change match settings, but the
-host has no special power beyond that configuration role — once the match
-starts, the host doesn't own the campaign and gets no extra gameplay
-authority. The rule that matters more than who holds the host role is
-consent: any settings change clears existing approvals, and a match can only
-become ready once every current player has approved the current settings. If
-someone rejects, the match stays in configuration. If someone leaves before
-the match starts, approval is recalculated for whoever remains. Once a match
-starts, its approved settings are locked in.
+Development defaults, not an approved permanent product configuration:
+1,000 virtual chips per seat, small blind 5, big blind 10, no ante, no rake.
+These are stored per table (not hard-coded constants) so a later slice can
+make them configurable without a schema change.
 
-## Persistence
+## Persistence and identity
 
-A match's world — its grid, buildings, resources, armies, territory — belongs
-to the campaign, not to any one player or to the host. If a player leaves an
-ongoing campaign, their country's state stays in the world rather than
-disappearing; a replacement-player system to let someone else take over a
-vacant country, with teammate approval, is planned but not part of this
-slice. Time-based resource production and already-issued orders are meant to
-keep advancing on the server while players are offline, since the server is
-the authority on game state and time, not the browser.
-
-## Crit 8 scope
-
-Crit 8 is a proof-of-life vertical slice, not the finished game. This stage
-now implements:
-
-1. create or enter a campaign/lobby
-2. at least two users can participate
-3. assign players to symmetric opposing teams/countries
-4. the host can configure a minimal set of match settings
-5. every current player approves those settings
-6. the match starts only once approval is unanimous
-7. approved match settings become immutable
-8. a small grid world is created
-9. each side starts with a headquarters
-10. a player can construct at least one resource-producing building
-11. resource production advances on the 10-second game rule
-12. match/world/building/resource state persists
-13. a player who leaves and returns can find the campaign and its state intact
-
-Only symmetric team configurations (e.g. 1v1, 2v2, 3v3, possibly 2v2v2) are
-in scope for this stage, and not all of them are guaranteed to be implemented
-immediately.
-
-## Non-goals and deferred work (not Crit 8)
-
-Explicitly out of scope for Crit 8:
-
-- asymmetric team sizes (e.g. 2v1)
-- full combat resolution
-- army split/merge
-- retreat mechanics
-- replacement players taking over a vacant country
-- a full fog-of-war/intelligence system
-- large technology trees
-- multiple victory conditions beyond headquarters destruction
-- polished battle animation
-- the final real-time synchronization layer (planned for later, particularly
-  Crit 9)
-
-Combat, when it arrives, is intended to be server-authoritative with limited
-randomness, and enemy information is intended to eventually be filtered
-server-side rather than merely hidden in the client UI — but the exact
-mechanics, thresholds and formulas for both are not decided yet, and nothing
-here should be read as a commitment to specific numbers or algorithms.
+Tables and seats are stored in SQLite, in the same database and using the
+same anonymous, server-issued, HttpOnly-cookie identity as the rest of this
+project — reused unchanged from the strategy-war product. The old
+strategy-war tables (campaigns, participants, countries, tiles, buildings)
+may still physically exist in an existing database file for migration
+compatibility, but nothing in the poker application reads from or writes to
+them, and no old campaign data is ever converted into poker data.

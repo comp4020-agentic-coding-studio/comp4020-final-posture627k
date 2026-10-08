@@ -6,25 +6,16 @@ import { getCookie, setCookie } from "hono/cookie";
 import { streamSSE } from "hono/streaming";
 import type { Context } from "hono";
 import {
-  approveCurrentSettings,
-  buildResourceBuilding,
-  createCampaign,
   createIdentity,
+  createPokerTable,
   findIdentityByTokenHash,
-  getCampaignByCode,
-  getLobbyStatus,
-  getParticipantForIdentity,
-  getWorldForCampaign,
+  getPokerTableByCode,
+  getSeatForIdentity,
+  getSeatsForTable,
   hashToken,
-  joinCampaign,
-  listCampaignsForIdentity,
-  settleAndGetOwnCountryResources,
-  setResourcePreset,
-  startCampaign,
-  type Campaign,
-  type Participant,
-  type ResourcePreset,
-  type WorldState,
+  joinPokerTable,
+  type PokerSeat,
+  type PokerTable,
 } from "./db.ts";
 import { publish, subscribe as subscribeToRealtimeUpdates } from "./realtime.ts";
 
@@ -56,6 +47,14 @@ const pageShell = (title: string, body: string): string => `<!doctype html>
       p { margin: 0.4rem 0; }
       a { color: #2563eb; }
       code { overflow-wrap: anywhere; }
+      label { display: block; margin: 0.4rem 0; }
+      input[type="text"] {
+        font: inherit;
+        padding: 0.4rem 0.6rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 0.375rem;
+        margin-top: 0.25rem;
+      }
       button {
         font: inherit;
         padding: 0.5rem 1.1rem;
@@ -89,42 +88,9 @@ const pageShell = (title: string, body: string): string => `<!doctype html>
         border-radius: 0.3rem;
         font-size: 0.95rem;
       }
-      table.world {
-        border-collapse: collapse;
-        table-layout: fixed;
-        width: 100%;
-        max-width: 640px;
-        margin: 0.75rem 0;
-      }
-      @media (min-width: 640px) {
-        table.world { width: min(70vw, 640px); }
-      }
-      table.world td {
-        border: 1px solid #94a3b8;
-        text-align: center;
-        vertical-align: middle;
-        font-size: 1rem;
-        padding: 0;
-        aspect-ratio: 1 / 1;
-        background: #f8fafc;
-      }
-      table.world td.tile-hq { background: #fde68a; }
-      table.world td.tile-resource { background: #bbf7d0; }
-      table.world td.tile-owned-empty { background: #e0f2fe; }
-      table.world td.tile-enemy { background: #fecaca; }
-      table.world td.tile-mine { box-shadow: inset 0 0 0 3px #2563eb; font-weight: 700; }
-      table.world .build-form { margin: 0; width: 100%; height: 100%; }
-      table.world .build-form button {
-        width: 100%;
-        height: 100%;
-        border: 0;
-        border-radius: 0;
-        background: transparent;
-        font-size: 1.4rem;
-        font-weight: 700;
-        line-height: 1;
-        color: #15803d;
-        cursor: pointer;
+      @media (max-width: 480px) {
+        main { padding: 1rem 0.75rem 2rem; }
+        .panel { padding: 0.85rem 1rem; }
       }
     </style>
   </head>
@@ -153,6 +119,7 @@ function isHttpsRequest(c: Context): boolean {
 // a fresh one if it's missing or doesn't resolve to a known identity. This
 // is the only place identity is established; route handlers below only ever
 // read c.get("identityId") and never trust client-submitted identity data.
+// Unchanged from the strategy-war product: poker reuses this exactly.
 app.use("*", async (c, next) => {
   const token = getCookie(c, IDENTITY_COOKIE);
   let identityId: number | undefined;
@@ -178,301 +145,154 @@ app.use("*", async (c, next) => {
 });
 
 app.get("/", (c) => {
-  const identityId = c.get("identityId");
-  const campaigns = listCampaignsForIdentity(identityId);
-
-  const campaignList =
-    campaigns.length === 0
-      ? "<p>No campaigns yet.</p>"
-      : `<ul>
-${campaigns
-  .map(
-    (m) =>
-      `        <li><a href="/c/${encodeURIComponent(m.code)}">${escapeHtml(m.code)}</a> — seat ${m.seat}${m.isHost ? ", host" : ""}</li>`,
-  )
-  .join("\n")}
-      </ul>`;
-
   return c.html(
     pageShell(
-      "Grid Strategy",
-      `      <h1>Grid Strategy (working title)</h1>
-      <p>This is the Crit 8 foundation: campaigns, anonymous identity,
-      persistence, lobby settings, approval, match start, the fixed 8×8
-      world, headquarters/resource-building construction, and server-side
-      resource production all exist. Armies, combat and victory conditions
-      are not implemented yet.</p>
+      "Poker Lab",
+      `      <h1>Poker Lab</h1>
+      <p>Multiplayer Texas Hold'em, played with non-cash virtual chips only.
+      No real money, no purchases, no prizes, no cash-out.</p>
+      <p>This is an early foundation slice: creating and joining a table,
+      seating, and each player's chip stack. Dealing cards, betting and
+      hands are not implemented yet.</p>
       <p><a href="/readme/">About this project</a></p>
 
-      <h2>Create campaign</h2>
-      <form method="post" action="/campaigns">
-        <button type="submit">Create campaign</button>
+      <h2>Create a table</h2>
+      <form method="post" action="/tables">
+        <button type="submit">Create poker table</button>
       </form>
 
-      <h2>Your campaigns</h2>
-      ${campaignList}`,
+      <h2>Join a table</h2>
+      <form method="post" action="/tables/find">
+        <label>
+          Table code
+          <input type="text" name="code" required autocomplete="off" autocapitalize="characters" />
+        </label>
+        <button type="submit">Go to table</button>
+      </form>`,
     ),
   );
 });
 
-app.post("/campaigns", (c) => {
+app.post("/tables", (c) => {
   const identityId = c.get("identityId");
-  const campaign = createCampaign(identityId);
-  return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
+  const table = createPokerTable(identityId);
+  return c.redirect(`/t/${encodeURIComponent(table.code)}`, 303);
+});
+
+// Looks a code up by navigating to the table page — it does not itself claim
+// a seat. Seating happens from the table page's own "Join table" action
+// (POST /t/:code/join), exactly as the strategy-war product separated
+// viewing a campaign from joining it.
+app.post("/tables/find", async (c) => {
+  const body = await c.req.parseBody();
+  const submitted = body["code"];
+  const code = typeof submitted === "string" ? submitted.trim().toUpperCase() : "";
+
+  if (!code) {
+    return c.html(
+      pageShell(
+        "Enter a table code",
+        '      <h1>Enter a table code</h1>\n      <p><a href="/">Back</a></p>',
+      ),
+      400,
+    );
+  }
+
+  return c.redirect(`/t/${encodeURIComponent(code)}`, 303);
 });
 
 function notFoundPage(c: Context) {
-  return c.html(pageShell("Campaign not found", "      <h1>Campaign not found</h1>"), 404);
+  return c.html(pageShell("Table not found", "      <h1>Table not found</h1>"), 404);
 }
 
-const PRESET_LABELS: Record<ResourcePreset, string> = {
-  standard: "Standard (10 resources / building / 10s interval)",
-  rapid: "Rapid (20 resources / building / 10s interval)",
-};
-
-function renderSeatLine(seatNumber: 1 | 2, participant: Participant | undefined, approvedSeats: number[]): string {
-  if (!participant) return `<p class="meta">Seat ${seatNumber}: open</p>`;
-  const approved = approvedSeats.includes(seatNumber);
-  const statusClass = approved ? "status-line" : "meta";
-  return `<p class="${statusClass}">Seat ${seatNumber}: occupied${participant.isHost ? " (host)" : ""} — ${approved ? "approved" : "not approved"} current settings</p>`;
+function renderSeatLine(seatNumber: 1 | 2, seat: PokerSeat | undefined): string {
+  if (!seat) return `<p class="meta">Seat ${seatNumber}: vacant</p>`;
+  return `<p class="status-line">Seat ${seatNumber}: occupied — ${seat.chipStack} chips</p>`;
 }
 
-const WORLD_SIZE = 8;
-
-// Renders the persisted world exactly as stored — no client-side
-// interpretation of ownership, nothing calculated in the browser. Every
-// cell carries visible text (not colour alone) identifying HQ/resource/
-// country/neutral, for accessibility; the "mine" highlight is a visual-only
-// extra. A build control is only ever rendered for an owned, empty tile
-// belonging to selfSeat — authorization is still re-checked server-side by
-// the route this form posts to, this is convenience only.
-function renderWorldGrid(world: WorldState, selfSeat: number | undefined, campaignCode: string): string {
-  const seatByCountryId = new Map<number, number>();
-  for (const country of world.countries) seatByCountryId.set(country.id, country.seat);
-
-  const tileByCoord = new Map<string, { ownerCountryId: number | null }>();
-  for (const tile of world.tiles) tileByCoord.set(`${tile.row},${tile.col}`, tile);
-
-  const buildingByCoord = new Map<string, { type: string; seat: number | undefined }>();
-  for (const building of world.buildings) {
-    buildingByCoord.set(`${building.row},${building.col}`, {
-      type: building.type,
-      seat: seatByCountryId.get(building.countryId),
-    });
-  }
-
-  let rows = "";
-  for (let row = 0; row < WORLD_SIZE; row++) {
-    rows += "          <tr>\n";
-    for (let col = 0; col < WORLD_SIZE; col++) {
-      const key = `${row},${col}`;
-      const tile = tileByCoord.get(key);
-      const ownerSeat =
-        tile?.ownerCountryId !== null && tile?.ownerCountryId !== undefined
-          ? seatByCountryId.get(tile.ownerCountryId)
-          : undefined;
-      const building = buildingByCoord.get(key);
-
-      let label: string;
-      let description: string;
-      if (building && building.seat !== undefined) {
-        const kind = building.type === "headquarters" ? "HQ" : "R";
-        const kindDescription = building.type === "headquarters" ? "headquarters" : "resource building";
-        label = `${kind}${building.seat}`;
-        description = `row ${row}, column ${col}: ${kindDescription}, country ${building.seat}`;
-      } else if (ownerSeat !== undefined) {
-        label = `C${ownerSeat}`;
-        description = `row ${row}, column ${col}: owned by country ${ownerSeat}`;
-      } else {
-        label = "·";
-        description = `row ${row}, column ${col}: neutral`;
-      }
-
-      const mine = ownerSeat !== undefined && ownerSeat === selfSeat;
-      const buildable = mine && !building;
-
-      // One of five categories, purely for background colour — the visible
-      // label/aria-label/title above remain the authoritative, text-based
-      // identification; colour is a supplementary cue only.
-      let categoryClass: string;
-      if (building?.type === "headquarters") categoryClass = "tile-hq";
-      else if (building) categoryClass = "tile-resource";
-      else if (mine) categoryClass = "tile-owned-empty";
-      else if (ownerSeat !== undefined) categoryClass = "tile-enemy";
-      else categoryClass = "";
-
-      const cellContent = buildable
-        ? `<form method="post" action="/c/${encodeURIComponent(campaignCode)}/build" class="build-form">
-              <input type="hidden" name="row" value="${row}" />
-              <input type="hidden" name="col" value="${col}" />
-              <button type="submit" aria-label="Build resource building at row ${row}, column ${col}" title="Build resource building">+</button>
-            </form>`
-        : escapeHtml(label);
-
-      const classes = ["tile", categoryClass, mine ? "tile-mine" : ""].filter(Boolean).join(" ");
-      rows += `            <td class="${classes}" aria-label="${escapeHtml(description)}" title="${escapeHtml(description)}">${cellContent}</td>\n`;
-    }
-    rows += "          </tr>\n";
-  }
-
-  return `      <table class="world">
-        <caption>Match world (8×8)</caption>
-        <tbody>
-${rows}        </tbody>
-      </table>`;
-}
-
-// Computes the dynamic campaign HTML for the current requester's identity —
-// lobby (pre-start) or world (started), participant or not. This is the one
-// shared rendering seam Crit 9 needs: GET /c/:code wraps its result in the
-// full page shell plus the realtime wrapper/script, and GET /c/:code/live
-// (below) returns exactly the same string as a bare fragment. There is no
-// separate copy of the lobby/world rendering logic anywhere else.
-function renderCampaignBody(c: Context, campaign: Campaign): string {
+// Computes the dynamic table HTML for the current requester's identity. This
+// is the one shared rendering seam the realtime refresh needs: GET /t/:code
+// wraps its result in the full page shell plus the realtime wrapper/script,
+// and GET /t/:code/live (below) returns exactly the same string as a bare
+// fragment. There is no separate copy of this rendering logic anywhere else.
+//
+// Deliberately shows no cards, no betting actions and no hand state: none of
+// that exists yet in this foundation slice, and CLAUDE.md's rule against
+// implying unimplemented behaviour applies here same as everywhere else.
+function renderTableBody(c: Context, table: PokerTable): string {
   const identityId = c.get("identityId");
-  const { participants, approvedSeats, ready } = getLobbyStatus(campaign);
-  const self = participants.find((p) => p.identityId === identityId);
-  const seat1 = participants.find((p) => p.seat === 1);
-  const seat2 = participants.find((p) => p.seat === 2);
-  const shareUrl = new URL(`/c/${encodeURIComponent(campaign.code)}`, c.req.url).toString();
-  const presetLabel = PRESET_LABELS[campaign.resourcePreset];
-  const started = campaign.status === "started";
+  const seats = getSeatsForTable(table.id);
+  const self = seats.find((s) => s.identityId === identityId);
+  const seat1 = seats.find((s) => s.seatNumber === 1);
+  const seat2 = seats.find((s) => s.seatNumber === 2);
+  const shareUrl = new URL(`/t/${encodeURIComponent(table.code)}`, c.req.url).toString();
 
-  if (started) {
-    const selfLine = self
-      ? `<p class="status-line">You are seat ${self.seat}${self.isHost ? " (configuration-role host)" : ""}.</p>`
-      : "<p>You are not a participant.</p>";
-
-    // Settlement only ever runs for the viewer's own country, and only when
-    // they actually are a participant — a non-participant never triggers or
-    // sees anyone's balance here.
-    const resourcesLine = self
-      ? (() => {
-          const settlement = settleAndGetOwnCountryResources(campaign.id, identityId);
-          return settlement.ok
-            ? `<p class="status-line">Resources: ${settlement.balance}</p>
-      <p class="meta">Resource buildings produce every 10 seconds.</p>`
-            : "";
-        })()
-      : "";
-
-    const world = getWorldForCampaign(campaign.id);
-    const gridHtml = renderWorldGrid(world, self?.seat, campaign.code);
-
-    return `      <header class="panel">
-        <h1>Campaign ${escapeHtml(campaign.code)}</h1>
-        <p class="status-line">Status: started.</p>
-        ${selfLine}
-      </header>
-
-      <section class="panel">
-        <h2>Match</h2>
-        ${resourcesLine}
-        <p>Resource-production preset (locked): ${escapeHtml(presetLabel)}</p>
-        <p class="meta">Settings are locked and cannot change after start.</p>
-        <p class="meta">Seat 1: ${seat1 ? `occupied${seat1.isHost ? " (host)" : ""}` : "open"}</p>
-        <p class="meta">Seat 2: ${seat2 ? `occupied${seat2.isHost ? " (host)" : ""}` : "open"}</p>
-      </section>
-
-      <section class="panel">
-        <h2>World</h2>
-${gridHtml}
-      </section>`;
-  } else {
-    const selfSection = self
-      ? `<p class="status-line">You are seat ${self.seat}${self.isHost ? " (configuration-role host)" : ""}.</p>`
-      : seat2
-        ? "<p>This campaign is full. You are not a participant.</p>"
-        : `      <form method="post" action="/c/${encodeURIComponent(campaign.code)}/join">
-        <button type="submit">Join campaign</button>
+  const selfSection = self
+    ? `<p class="status-line">You are seat ${self.seatNumber} — ${self.chipStack} chips.</p>`
+    : seat2
+      ? "<p>This table is full. You are not a participant.</p>"
+      : `      <form method="post" action="/t/${encodeURIComponent(table.code)}/join">
+        <button type="submit">Join table</button>
       </form>`;
 
-    const approveControls = self
-      ? approvedSeats.includes(self.seat)
-        ? `<p class="meta">You have approved settings revision ${campaign.settingsRevision}.</p>`
-        : `      <form method="post" action="/c/${encodeURIComponent(campaign.code)}/approve">
-        <button type="submit">Approve current settings</button>
-      </form>`
-      : "";
+  const statusLine =
+    table.status === "ready"
+      ? `<p class="status-line">Both seats are filled.</p>
+      <p class="meta">Hand play is not implemented yet in this foundation slice.</p>`
+      : `<p class="status-line">Waiting for a second player.</p>`;
 
-    const settingsControls = self?.isHost
-      ? `      <form method="post" action="/c/${encodeURIComponent(campaign.code)}/settings">
-        <label>
-          <input type="radio" name="preset" value="standard" ${campaign.resourcePreset === "standard" ? "checked" : ""} />
-          ${escapeHtml(PRESET_LABELS.standard)}
-        </label><br />
-        <label>
-          <input type="radio" name="preset" value="rapid" ${campaign.resourcePreset === "rapid" ? "checked" : ""} />
-          ${escapeHtml(PRESET_LABELS.rapid)}
-        </label><br />
-        <button type="submit">Update setting</button>
-      </form>`
-      : "";
-
-    const startControls = self?.isHost
-      ? ready
-        ? `<form method="post" action="/c/${encodeURIComponent(campaign.code)}/start">
-        <button type="submit">Start match</button>
-      </form>`
-        : "<p class=\"meta\">Not ready: both seats must be filled and both participants must approve the current settings.</p>"
-      : "";
-
-    return `      <header class="panel">
-        <h1>Campaign ${escapeHtml(campaign.code)}</h1>
-        <p class="status-line">Status: pre-start (configuring).</p>
+  return `      <header class="panel">
+        <h1>Table ${escapeHtml(table.code)}</h1>
+        ${statusLine}
         ${selfSection}
         <p class="meta">Other players' committed changes appear automatically while this page is open.</p>
       </header>
 
       <section class="panel invite">
-        <strong>Invite link</strong> — send this to Player 2:
+        <strong>Invite link</strong> — send this to the other player:
         <code>${escapeHtml(shareUrl)}</code>
       </section>
 
       <section class="panel">
-        <h2>Players</h2>
-        ${renderSeatLine(1, seat1, approvedSeats)}
-        ${renderSeatLine(2, seat2, approvedSeats)}
+        <h2>Seats</h2>
+        ${renderSeatLine(1, seat1)}
+        ${renderSeatLine(2, seat2)}
       </section>
 
       <section class="panel">
-        <h2>Match settings</h2>
-        <p>Resource-production preset: ${escapeHtml(presetLabel)}</p>
-        <p class="meta">Settings revision: ${campaign.settingsRevision}</p>
-        ${settingsControls}
-      </section>
-
-      <section class="panel">
-        <h2>Approval</h2>
-        <p class="status-line">Ready to start: ${ready ? "yes" : "no"}</p>
-        ${approveControls}
-        ${startControls}
+        <h2>Table settings</h2>
+        <p>Blinds: ${table.smallBlind} / ${table.bigBlind}. Starting stack:
+        ${table.startingStack} virtual chips per seat.</p>
+        <p class="meta">Development defaults, not yet an approved permanent
+        configuration. Non-cash virtual chips only — no real money, no
+        purchases, no cash-out.</p>
       </section>`;
-  }
 }
 
-// The campaign-live wrapper's id, shared between the full page (below) and
-// the realtime client script's refresh target — exactly one element with
-// this id exists per campaign page load.
-const CAMPAIGN_LIVE_WRAPPER_ID = "campaign-live";
+// The table-live wrapper's id, shared between the full page (below) and the
+// realtime client script's refresh target — exactly one element with this id
+// exists per table page load.
+const TABLE_LIVE_WRAPPER_ID = "poker-table-live";
 
-// Builds the inline realtime client script for a participant only. Listens
+// Builds the inline realtime client script for a seated player only. Listens
 // for exactly "ready" (covers first connection and every native reconnect —
-// the server sends one per stream) and "campaign_changed"; heartbeat is
+// the server sends one per stream) and "table_changed"; heartbeat is
 // deliberately never listened for, so it can never trigger a refresh. The
 // refresh itself is serialized/coalesced: at most one /live fetch is ever in
 // flight, a refresh requested mid-fetch is merely queued, and finishing a
 // fetch runs exactly one queued catch-up refresh rather than one per missed
 // event. A failed fetch (network error or non-OK status) only logs a
-// warning — it never clears or replaces the currently-rendered campaign UI,
-// and a later ready/campaign_changed event gets another chance.
+// warning — it never clears or replaces the currently-rendered table UI, and
+// a later ready/table_changed event gets another chance. Unchanged in
+// mechanism from the strategy-war product's realtime script; only the event
+// name and wrapper id are poker-specific.
 function renderRealtimeScript(eventsUrl: string, liveUrl: string): string {
   return `      <script>
         (function () {
           var fetchInFlight = false;
           var refreshQueued = false;
 
-          function refreshCampaignLive() {
+          function refreshTableLive() {
             if (fetchInFlight) {
               refreshQueued = true;
               return;
@@ -484,45 +304,43 @@ function renderRealtimeScript(eventsUrl: string, liveUrl: string): string {
                 return res.text();
               })
               .then(function (html) {
-                var el = document.getElementById(${JSON.stringify(CAMPAIGN_LIVE_WRAPPER_ID)});
+                var el = document.getElementById(${JSON.stringify(TABLE_LIVE_WRAPPER_ID)});
                 if (el) el.innerHTML = html;
               })
               .catch(function (err) {
-                console.warn("campaign live refresh failed", err);
+                console.warn("table live refresh failed", err);
               })
               .finally(function () {
                 fetchInFlight = false;
                 if (refreshQueued) {
                   refreshQueued = false;
-                  refreshCampaignLive();
+                  refreshTableLive();
                 }
               });
           }
 
           var source = new EventSource(${JSON.stringify(eventsUrl)});
-          source.addEventListener("ready", refreshCampaignLive);
-          source.addEventListener("campaign_changed", refreshCampaignLive);
+          source.addEventListener("ready", refreshTableLive);
+          source.addEventListener("table_changed", refreshTableLive);
         })();
       </script>`;
 }
 
-function renderCampaignPage(c: Context, campaign: Campaign): Response {
+function renderTablePage(c: Context, table: PokerTable): Response {
   const identityId = c.get("identityId");
-  const isParticipant = getParticipantForIdentity(campaign.id, identityId) !== undefined;
-  const bodyHtml = renderCampaignBody(c, campaign);
-  const code = encodeURIComponent(campaign.code);
+  const isParticipant = getSeatForIdentity(table.id, identityId) !== undefined;
+  const bodyHtml = renderTableBody(c, table);
+  const code = encodeURIComponent(table.code);
 
-  // Only a participant ever opens the realtime connection — a non-
-  // participant may already view this page (see docs/crit-9-architecture.md
-  // section 3 for why the subscription itself is narrower than page
-  // visibility), so this script, and the SSE connection it opens, simply
-  // doesn't exist for them at all.
-  const realtimeScript = isParticipant ? renderRealtimeScript(`/c/${code}/events`, `/c/${code}/live`) : "";
+  // Only a seated player ever opens the realtime connection — a non-
+  // participant may already view this page, so this script, and the SSE
+  // connection it opens, simply doesn't exist for them at all.
+  const realtimeScript = isParticipant ? renderRealtimeScript(`/t/${code}/events`, `/t/${code}/live`) : "";
 
   return c.html(
     pageShell(
-      `Campaign ${campaign.code}`,
-      `      <div id="${CAMPAIGN_LIVE_WRAPPER_ID}">
+      `Table ${table.code}`,
+      `      <div id="${TABLE_LIVE_WRAPPER_ID}">
 ${bodyHtml}
       </div>
 ${realtimeScript}`,
@@ -530,207 +348,76 @@ ${realtimeScript}`,
   );
 }
 
-app.get("/c/:code", (c) => {
-  const campaign = getCampaignByCode(c.req.param("code"));
-  if (!campaign) return notFoundPage(c);
-  return renderCampaignPage(c, campaign);
+app.get("/t/:code", (c) => {
+  const table = getPokerTableByCode(c.req.param("code"));
+  if (!table) return notFoundPage(c);
+  return renderTablePage(c, table);
 });
 
-// Crit 9 Slice 2: the authoritative live fragment the realtime client script
-// refetches. Identity-specific and can include a just-settled resource
-// balance, so it must never be cached or stored by a shared/intermediate
-// cache. No JSON, no client-submitted identity/seat/country — exactly the
-// same renderCampaignBody() output GET /c/:code itself embeds, just without
-// the page shell around it (no <!doctype html>, no <html> wrapper).
-app.get("/c/:code/live", (c) => {
-  const campaign = getCampaignByCode(c.req.param("code"));
-  if (!campaign) return notFoundPage(c);
+// The authoritative live fragment the realtime client script refetches.
+// Identity-specific, so it must never be cached or stored by a shared/
+// intermediate cache. No JSON, no client-submitted identity/seat — exactly
+// the same renderTableBody() output GET /t/:code itself embeds, just
+// without the page shell around it (no <!doctype html>, no <html> wrapper).
+app.get("/t/:code/live", (c) => {
+  const table = getPokerTableByCode(c.req.param("code"));
+  if (!table) return notFoundPage(c);
 
   c.header("Cache-Control", "no-store, private");
-  return c.html(renderCampaignBody(c, campaign));
+  return c.html(renderTableBody(c, table));
 });
 
-app.post("/c/:code/join", (c) => {
-  const campaign = getCampaignByCode(c.req.param("code"));
-  if (!campaign) return notFoundPage(c);
+app.post("/t/:code/join", (c) => {
+  const table = getPokerTableByCode(c.req.param("code"));
+  if (!table) return notFoundPage(c);
 
   const identityId = c.get("identityId");
-  const result = joinCampaign(campaign.id, identityId);
+  const result = joinPokerTable(table.id, identityId);
 
   if (!result.ok) {
     return c.html(
       pageShell(
-        "Campaign full",
-        `      <h1>This campaign is already full</h1>
-      <p><a href="/c/${encodeURIComponent(campaign.code)}">Back to the campaign</a></p>`,
+        "Table full",
+        `      <h1>This table is already full</h1>
+      <p><a href="/t/${encodeURIComponent(table.code)}">Back to the table</a></p>`,
       ),
       409,
     );
   }
 
-  // Only a genuinely new participant is a shared state change worth telling
-  // anyone else about — the same identity idempotently re-joining (already
-  // handled, already committed, nothing new) must not publish.
-  if (!result.alreadyJoined) publish(campaign.id);
+  // Only a genuinely new seat is a shared state change worth telling anyone
+  // else about — the same identity idempotently re-joining (already seated,
+  // nothing new) must not publish.
+  if (!result.alreadyJoined) publish(table.id);
 
-  return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
+  return c.redirect(`/t/${encodeURIComponent(table.code)}`, 303);
 });
 
-app.post("/c/:code/settings", async (c) => {
-  const campaign = getCampaignByCode(c.req.param("code"));
-  if (!campaign) return notFoundPage(c);
-
-  const body = await c.req.parseBody();
-  const submitted = body["preset"];
-  const preset: ResourcePreset | undefined =
-    submitted === "standard" || submitted === "rapid" ? submitted : undefined;
-
-  if (!preset) {
-    return c.html(
-      pageShell("Invalid setting", "      <h1>Invalid resource-production preset</h1>"),
-      400,
-    );
-  }
-
-  const identityId = c.get("identityId");
-  const result = setResourcePreset(campaign.id, identityId, preset);
-
-  if (!result.ok) {
-    const [message, status] =
-      result.reason === "not_host"
-        ? (["Only the host can change settings.", 403] as const)
-        : (["Settings cannot change after the match has started.", 409] as const);
-    return c.html(pageShell("Cannot change settings", `      <h1>${escapeHtml(message)}</h1>`), status);
-  }
-
-  // Resubmitting the already-active preset is a no-op (no revision bump, no
-  // approval invalidation) — nothing changed, so nothing to notify.
-  if (result.changed) publish(campaign.id);
-
-  return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
-});
-
-app.post("/c/:code/approve", (c) => {
-  const campaign = getCampaignByCode(c.req.param("code"));
-  if (!campaign) return notFoundPage(c);
-
-  const identityId = c.get("identityId");
-  const result = approveCurrentSettings(campaign.id, identityId);
-
-  if (!result.ok) {
-    const [message, status] =
-      result.reason === "not_participant"
-        ? (["Only a participant in this campaign can approve.", 403] as const)
-        : (["Approval is only possible before the match starts.", 409] as const);
-    return c.html(pageShell("Cannot approve", `      <h1>${escapeHtml(message)}</h1>`), status);
-  }
-
-  // A repeat approval of the same current revision is an idempotent no-op
-  // (ON CONFLICT DO NOTHING) — nothing changed, so nothing to notify.
-  if (result.changed) publish(campaign.id);
-
-  return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
-});
-
-app.post("/c/:code/start", (c) => {
-  const campaign = getCampaignByCode(c.req.param("code"));
-  if (!campaign) return notFoundPage(c);
-
-  const identityId = c.get("identityId");
-  const result = startCampaign(campaign.id, identityId);
-
-  if (!result.ok) {
-    const [message, status] =
-      result.reason === "not_host"
-        ? (["Only the host can start the match.", 403] as const)
-        : result.reason === "already_started"
-          ? (["This match has already started.", 409] as const)
-          : ([
-              "The match cannot start yet: both seats must be filled and both participants must approve the current settings.",
-              409,
-            ] as const);
-    return c.html(pageShell("Cannot start", `      <h1>${escapeHtml(message)}</h1>`), status);
-  }
-
-  // A successful start always transitions configuring -> started and
-  // generates the world: always an effective change.
-  publish(campaign.id);
-
-  return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
-});
-
-app.post("/c/:code/build", async (c) => {
-  const campaign = getCampaignByCode(c.req.param("code"));
-  if (!campaign) return notFoundPage(c);
-
-  const body = await c.req.parseBody();
-  const row = Number(body["row"]);
-  const col = Number(body["col"]);
-
-  if (!Number.isInteger(row) || !Number.isInteger(col)) {
-    return c.html(pageShell("Invalid tile", "      <h1>Invalid tile coordinate</h1>"), 400);
-  }
-
-  const identityId = c.get("identityId");
-  const result = buildResourceBuilding(campaign.id, identityId, row, col);
-
-  if (!result.ok) {
-    const [message, status] =
-      result.reason === "not_started"
-        ? (["Construction is only possible after the match has started.", 409] as const)
-        : result.reason === "not_participant"
-          ? (["Only a participant in this campaign can construct.", 403] as const)
-          : result.reason === "invalid_coordinate"
-            ? (["That tile is outside the 8×8 world.", 400] as const)
-            : result.reason === "not_owned"
-              ? (["You can only build on an empty tile your own country owns.", 403] as const)
-              : (["That tile already has a building.", 409] as const);
-    return c.html(pageShell("Cannot build", `      <h1>${escapeHtml(message)}</h1>`), status);
-  }
-
-  // A successful construction always inserts a new building: always an
-  // effective change. On the same-tile race, only the winning request's
-  // transaction actually commits and reaches this line — the loser returns
-  // through the !result.ok branch above and never publishes.
-  publish(campaign.id);
-
-  return c.redirect(`/c/${encodeURIComponent(campaign.code)}`, 303);
-});
-
-// Crit 9 Slice 1: SSE transport only. No existing mutation publishes to this
-// yet (see docs/crit-9-architecture.md) — the hub is exercised directly by
-// tests, and this route exists so a real connection/subscribe/heartbeat/
-// cleanup cycle can be verified end to end. Deliberately narrower than
-// GET /c/:code's own visibility: only an actual participant may subscribe,
-// even though a non-participant may already view the page itself (see the
-// architecture doc's Section 3 for why).
-//
-// Heartbeat: a comment-free "heartbeat" SSE event every 20 seconds, so
-// intermediate proxies (Fly's edge) don't treat an otherwise-quiet
-// connection as dead, and so a client can notice a silently-broken
-// connection faster than a TCP timeout would. This interval is internal only
-// — nothing in this route accepts a client-supplied interval.
+// SSE transport, reused unchanged in mechanism from the strategy-war
+// product: participant-gated (403/404 before the stream opens), a single
+// content-free "table_changed" event, and a 20s heartbeat so intermediate
+// proxies don't treat an otherwise-quiet connection as dead.
 const HEARTBEAT_INTERVAL_MS = 20_000;
 
-app.get("/c/:code/events", (c) => {
-  const campaign = getCampaignByCode(c.req.param("code"));
-  if (!campaign) return notFoundPage(c);
+app.get("/t/:code/events", (c) => {
+  const table = getPokerTableByCode(c.req.param("code"));
+  if (!table) return notFoundPage(c);
 
   const identityId = c.get("identityId");
-  const participant = getParticipantForIdentity(campaign.id, identityId);
-  if (!participant) {
+  const seat = getSeatForIdentity(table.id, identityId);
+  if (!seat) {
     return c.html(
       pageShell(
         "Cannot subscribe",
-        "      <h1>Only a participant in this campaign can subscribe to its live updates.</h1>",
+        "      <h1>Only a seated player at this table can subscribe to its live updates.</h1>",
       ),
       403,
     );
   }
 
   return streamSSE(c, async (stream) => {
-    const unsubscribe = subscribeToRealtimeUpdates(campaign.id, async () => {
-      await stream.writeSSE({ event: "campaign_changed", data: "" });
+    const unsubscribe = subscribeToRealtimeUpdates(table.id, async () => {
+      await stream.writeSSE({ event: "table_changed", data: "" });
     });
 
     const heartbeat = setInterval(() => {
@@ -784,10 +471,8 @@ app.get("/readme/", (c) => {
   );
 });
 
-// Exported so spec/realtime.test.ts can exercise the real Hono app
-// in-process (via app.fetch), the same way spec/migration.test.ts and
-// spec/settlement.test.ts already import db.ts directly rather than going
-// through HTTP — needed because verifying that a direct realtime.ts publish()
+// Exported so spec files can exercise the real Hono app in-process (via
+// app.fetch) — needed because verifying that a direct realtime.ts publish()
 // reaches an open SSE stream requires the test and the stream to share the
 // same in-memory subscriber registry, which isn't possible against a
 // separate process (e.g. the Docker container the other spec files test

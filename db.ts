@@ -8,7 +8,16 @@ import { DatabaseSync } from "node:sqlite";
 // SCHEMA_VERSION, migrating an existing older database in place rather than
 // recreating it. A database from a newer, unknown version fails loudly
 // instead of being silently reinterpreted.
-const SCHEMA_VERSION = 4;
+//
+// Versions 1-4 are the strategy-war product (Crit 8/9). That product is
+// cancelled (see docs/poker-final-architecture.md) and its HTTP routes and
+// business logic have been removed below, but its schema and migrations are
+// kept byte-for-byte: the old tables may still physically exist in an
+// existing database file, and the migration chain that produces them must
+// keep working exactly as it always did, so an old deployment's data is
+// never silently reinterpreted or destroyed. Version 5 adds the poker
+// domain as a new, independent set of tables.
+const SCHEMA_VERSION = 5;
 
 // The fixed Crit 8 world layout. Defined here, ahead of the schema/migration
 // code below, because the v2 -> v3 migration can call generateWorld() (to
@@ -17,6 +26,10 @@ const SCHEMA_VERSION = 4;
 // even inside a hoisted function, so this can't live further down the file
 // near generateWorld's definition without hitting that temporal-dead-zone
 // error the moment a backfill is actually needed.
+//
+// generateWorld() and this layout are retained solely because the v2 -> v3
+// migration below still calls them against a real pre-existing v2 database.
+// Nothing in the current (poker) application calls either any more.
 const WORLD_SIZE = 8;
 
 interface StartingZone {
@@ -217,6 +230,46 @@ if (currentVersion < 4) {
   }
 }
 
+// Migration: schema version 4 -> 5 (poker domain foundation). Additive only,
+// like every migration above: the strategy-war tables (campaigns,
+// participants, approvals, countries, tiles, buildings) are untouched and
+// keep whatever data they already had. Poker is a wholly independent set of
+// tables — a poker table is not a renamed campaign, and nothing here reads
+// from or writes to any war-game table.
+//
+// This is the minimum persistence the poker foundation slice needs: create a
+// table, seat exactly two players, give each an initial chip stack, and
+// track whether the table is still waiting for a second player. Hand/betting
+// persistence (deck, hole cards, streets, pots, settlement) is deliberately
+// not introduced yet — see docs/poker-final-architecture.md section 6 for
+// the full proposed shape, most of which has a concrete dependency only once
+// hand play itself is implemented.
+if (currentVersion < 5) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS poker_tables (
+      id INTEGER PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'waiting_for_players'
+        CHECK (status IN ('waiting_for_players', 'ready')),
+      small_blind INTEGER NOT NULL DEFAULT 5 CHECK (small_blind > 0),
+      big_blind INTEGER NOT NULL DEFAULT 10 CHECK (big_blind > small_blind),
+      starting_stack INTEGER NOT NULL DEFAULT 1000 CHECK (starting_stack > 0),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS poker_seats (
+      id INTEGER PRIMARY KEY,
+      table_id INTEGER NOT NULL REFERENCES poker_tables(id),
+      identity_id INTEGER NOT NULL REFERENCES identities(id),
+      seat_number INTEGER NOT NULL CHECK (seat_number IN (1, 2)),
+      chip_stack INTEGER NOT NULL CHECK (chip_stack >= 0),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      UNIQUE (table_id, seat_number),
+      UNIQUE (table_id, identity_id)
+    );
+  `);
+}
+
 db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`);
 
 export function hashToken(token: string): string {
@@ -239,418 +292,24 @@ export function findIdentityByTokenHash(tokenHash: string): Identity | undefined
   return row ? { id: row.id } : undefined;
 }
 
-export type ResourcePreset = "standard" | "rapid";
-const DEFAULT_RESOURCE_PRESET: ResourcePreset = "standard";
-const INITIAL_SETTINGS_REVISION = 1;
-
-export interface Campaign {
-  id: number;
-  code: string;
-  status: string;
-  resourcePreset: ResourcePreset;
-  settingsRevision: number;
-}
-
-export interface Participant {
-  campaignId: number;
-  identityId: number;
-  seat: number;
-  isHost: boolean;
-}
-
-// Avoids 0/O/1/I/L, which are easy to misread or mistype when a code is
-// shared out loud or copied by hand.
-const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
-const CODE_LENGTH = 8;
-
-function generateCampaignCode(): string {
-  const bytes = randomBytes(CODE_LENGTH);
-  let code = "";
-  for (let i = 0; i < CODE_LENGTH; i++) {
-    code += CODE_ALPHABET[bytes[i] % CODE_ALPHABET.length];
-  }
-  return code;
-}
-
 function isUniqueConstraintViolation(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
   const code = (err as { code?: unknown }).code;
   return code === "ERR_SQLITE_ERROR" && err.message.includes("UNIQUE constraint failed");
 }
 
-// Creates the campaign and binds the creator to seat 1 as host atomically.
-// The campaign code is generated randomly (not derived from the primary
-// key) and retried on the (astronomically unlikely) chance of a collision.
-export function createCampaign(hostIdentityId: number): Campaign {
-  const MAX_ATTEMPTS = 5;
-  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const code = generateCampaignCode();
-    db.exec("BEGIN IMMEDIATE");
-    try {
-      const info = db.prepare("INSERT INTO campaigns (code) VALUES (?)").run(code);
-      const campaignId = Number(info.lastInsertRowid);
-      db.prepare(
-        "INSERT INTO participants (campaign_id, identity_id, seat, is_host) VALUES (?, ?, 1, 1)",
-      ).run(campaignId, hostIdentityId);
-      db.exec("COMMIT");
-      return {
-        id: campaignId,
-        code,
-        status: "configuring",
-        resourcePreset: DEFAULT_RESOURCE_PRESET,
-        settingsRevision: INITIAL_SETTINGS_REVISION,
-      };
-    } catch (err) {
-      db.exec("ROLLBACK");
-      if (isUniqueConstraintViolation(err)) continue;
-      throw err;
-    }
-  }
-  throw new Error("failed to generate a unique campaign code");
-}
+// --- Strategy-war world generation (migration-only) -------------------------
+// Retained solely because the v2 -> v3 migration above can still call this
+// against a real pre-existing v2 database. The poker application never calls
+// it. Kept exactly as it behaved in the strategy-war product so an old
+// database migrates identically to how it always did.
 
-function toCampaign(row: {
-  id: number;
-  code: string;
-  status: string;
-  resource_preset: string;
-  settings_revision: number;
-}): Campaign {
-  return {
-    id: row.id,
-    code: row.code,
-    status: row.status,
-    resourcePreset: row.resource_preset as ResourcePreset,
-    settingsRevision: row.settings_revision,
-  };
-}
-
-export function getCampaignByCode(code: string): Campaign | undefined {
-  const row = db
-    .prepare(
-      "SELECT id, code, status, resource_preset, settings_revision FROM campaigns WHERE code = ?",
-    )
-    .get(code) as
-    | { id: number; code: string; status: string; resource_preset: string; settings_revision: number }
-    | undefined;
-  return row ? toCampaign(row) : undefined;
-}
-
-export function getParticipantsForCampaign(campaignId: number): Participant[] {
-  const rows = db
-    .prepare(
-      `SELECT campaign_id, identity_id, seat, is_host
-       FROM participants WHERE campaign_id = ? ORDER BY seat`,
-    )
-    .all(campaignId) as {
-    campaign_id: number;
-    identity_id: number;
-    seat: number;
-    is_host: number;
-  }[];
-  return rows.map((r) => ({
-    campaignId: r.campaign_id,
-    identityId: r.identity_id,
-    seat: r.seat,
-    isHost: r.is_host === 1,
-  }));
-}
-
-export function getParticipantForIdentity(
-  campaignId: number,
-  identityId: number,
-): Participant | undefined {
-  const row = db
-    .prepare(
-      `SELECT campaign_id, identity_id, seat, is_host
-       FROM participants WHERE campaign_id = ? AND identity_id = ?`,
-    )
-    .get(campaignId, identityId) as
-    | { campaign_id: number; identity_id: number; seat: number; is_host: number }
-    | undefined;
-  if (!row) return undefined;
-  return {
-    campaignId: row.campaign_id,
-    identityId: row.identity_id,
-    seat: row.seat,
-    isHost: row.is_host === 1,
-  };
-}
-
-export type JoinResult =
-  | { ok: true; alreadyJoined: boolean; seat: number }
-  | { ok: false; reason: "full" };
-
-// The only open seat for Crit 8's fixed 1v1 shape is seat 2. Concurrency
-// safety comes from the UNIQUE(campaign_id, seat) constraint, not from the
-// pre-check below: two concurrent joins can both pass the pre-check, but
-// only one INSERT can win, and the loser's constraint violation is what
-// this function treats as "full" (not corrupted state).
-export function joinCampaign(campaignId: number, identityId: number): JoinResult {
-  const existing = getParticipantForIdentity(campaignId, identityId);
-  if (existing) {
-    return { ok: true, alreadyJoined: true, seat: existing.seat };
-  }
-
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    db.prepare(
-      "INSERT INTO participants (campaign_id, identity_id, seat, is_host) VALUES (?, ?, 2, 0)",
-    ).run(campaignId, identityId);
-    db.exec("COMMIT");
-    return { ok: true, alreadyJoined: false, seat: 2 };
-  } catch (err) {
-    db.exec("ROLLBACK");
-    if (isUniqueConstraintViolation(err)) {
-      return { ok: false, reason: "full" };
-    }
-    throw err;
-  }
-}
-
-export interface CampaignMembership extends Campaign {
-  seat: number;
-  isHost: boolean;
-}
-
-export function listCampaignsForIdentity(identityId: number): CampaignMembership[] {
-  const rows = db
-    .prepare(
-      `SELECT c.id AS id, c.code AS code, c.status AS status,
-              c.resource_preset AS resource_preset, c.settings_revision AS settings_revision,
-              p.seat AS seat, p.is_host AS is_host
-       FROM campaigns c
-       JOIN participants p ON p.campaign_id = c.id
-       WHERE p.identity_id = ?
-       ORDER BY c.created_at DESC`,
-    )
-    .all(identityId) as {
-    id: number;
-    code: string;
-    status: string;
-    resource_preset: string;
-    settings_revision: number;
-    seat: number;
-    is_host: number;
-  }[];
-  return rows.map((r) => ({
-    ...toCampaign(r),
-    seat: r.seat,
-    isHost: r.is_host === 1,
-  }));
-}
-
-// --- Slice 3: lobby settings, approvals, start ------------------------------
-
-export type SetPresetResult =
-  | { ok: true; changed: boolean; revision: number }
-  | { ok: false; reason: "not_host" | "not_pre_start" };
-
-// Only the host may change the setting, and only pre-start. Submitting the
-// preset that's already active is a no-op: it doesn't advance the revision
-// or touch existing approvals, so a host re-submitting the same choice
-// doesn't gratuitously invalidate anyone's approval.
-export function setResourcePreset(
-  campaignId: number,
-  identityId: number,
-  preset: ResourcePreset,
-): SetPresetResult {
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    const participant = db
-      .prepare("SELECT is_host FROM participants WHERE campaign_id = ? AND identity_id = ?")
-      .get(campaignId, identityId) as { is_host: number } | undefined;
-
-    if (!participant || participant.is_host !== 1) {
-      db.exec("ROLLBACK");
-      return { ok: false, reason: "not_host" };
-    }
-
-    const campaign = db
-      .prepare("SELECT status, resource_preset, settings_revision FROM campaigns WHERE id = ?")
-      .get(campaignId) as
-      | { status: string; resource_preset: string; settings_revision: number }
-      | undefined;
-
-    if (!campaign || campaign.status !== "configuring") {
-      db.exec("ROLLBACK");
-      return { ok: false, reason: "not_pre_start" };
-    }
-
-    if (campaign.resource_preset === preset) {
-      db.exec("COMMIT");
-      return { ok: true, changed: false, revision: campaign.settings_revision };
-    }
-
-    const revision = campaign.settings_revision + 1;
-    db.prepare("UPDATE campaigns SET resource_preset = ?, settings_revision = ? WHERE id = ?").run(
-      preset,
-      revision,
-      campaignId,
-    );
-    db.exec("COMMIT");
-    return { ok: true, changed: true, revision };
-  } catch (err) {
-    db.exec("ROLLBACK");
-    throw err;
-  }
-}
-
-export type ApproveResult =
-  | { ok: true; revision: number; changed: boolean }
-  | { ok: false; reason: "not_participant" | "not_pre_start" };
-
-// Approving is scoped to "the current revision", read fresh inside this same
-// transaction — never a revision number supplied by the client. Approval
-// rows for past revisions are kept (not deleted) but are simply never
-// selected by anything that only looks at the current revision.
-//
-// `changed` (Crit 9) reports whether this call actually inserted a new
-// approval row, as opposed to a no-op repeat of an already-recorded
-// approval for the same participant/revision — taken from the INSERT's own
-// `changes` count (node:sqlite's StatementResultingChanges), not a second,
-// separate read. ON CONFLICT DO NOTHING makes `changes` 0 exactly when
-// nothing was written, confirmed directly against this Node runtime rather
-// than assumed.
-export function approveCurrentSettings(campaignId: number, identityId: number): ApproveResult {
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    const participant = db
-      .prepare("SELECT id FROM participants WHERE campaign_id = ? AND identity_id = ?")
-      .get(campaignId, identityId) as { id: number } | undefined;
-
-    if (!participant) {
-      db.exec("ROLLBACK");
-      return { ok: false, reason: "not_participant" };
-    }
-
-    const campaign = db
-      .prepare("SELECT status, settings_revision FROM campaigns WHERE id = ?")
-      .get(campaignId) as { status: string; settings_revision: number } | undefined;
-
-    if (!campaign || campaign.status !== "configuring") {
-      db.exec("ROLLBACK");
-      return { ok: false, reason: "not_pre_start" };
-    }
-
-    const info = db
-      .prepare(
-        "INSERT INTO approvals (participant_id, revision) VALUES (?, ?) ON CONFLICT (participant_id, revision) DO NOTHING",
-      )
-      .run(participant.id, campaign.settings_revision);
-
-    db.exec("COMMIT");
-    return { ok: true, revision: campaign.settings_revision, changed: info.changes > 0 };
-  } catch (err) {
-    db.exec("ROLLBACK");
-    throw err;
-  }
-}
-
-export interface LobbyStatus {
-  participants: Participant[];
-  approvedSeats: number[];
-  ready: boolean;
-}
-
-// Readiness is never stored: every call recomputes it from the participants
-// and approvals that exist right now, against the campaign's current
-// revision passed in by the caller (always freshly read, never cached).
-export function getLobbyStatus(campaign: Campaign): LobbyStatus {
-  const participants = getParticipantsForCampaign(campaign.id);
-  const approvalRows = db
-    .prepare(
-      `SELECT p.seat AS seat FROM approvals a
-       JOIN participants p ON p.id = a.participant_id
-       WHERE p.campaign_id = ? AND a.revision = ?`,
-    )
-    .all(campaign.id, campaign.settingsRevision) as { seat: number }[];
-  const approvedSeats = approvalRows.map((r) => r.seat);
-
-  const hasSeat1 = participants.some((p) => p.seat === 1);
-  const hasSeat2 = participants.some((p) => p.seat === 2);
-  const ready =
-    campaign.status === "configuring" &&
-    hasSeat1 &&
-    hasSeat2 &&
-    approvedSeats.includes(1) &&
-    approvedSeats.includes(2);
-
-  return { participants, approvedSeats, ready };
-}
-
-export type StartResult =
-  | { ok: true }
-  | { ok: false; reason: "not_host" | "already_started" | "not_ready" };
-
-// Every precondition is re-read inside this one transaction, including the
-// settings revision approvals are checked against — so a settings change or
-// a second start request racing this one can't produce a start based on
-// stale data. The UPDATE's own WHERE clause is a second, redundant guard
-// against a double transition.
-export function startCampaign(campaignId: number, identityId: number): StartResult {
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    const participant = db
-      .prepare("SELECT is_host FROM participants WHERE campaign_id = ? AND identity_id = ?")
-      .get(campaignId, identityId) as { is_host: number } | undefined;
-
-    if (!participant || participant.is_host !== 1) {
-      db.exec("ROLLBACK");
-      return { ok: false, reason: "not_host" };
-    }
-
-    const campaign = db
-      .prepare("SELECT status, settings_revision FROM campaigns WHERE id = ?")
-      .get(campaignId) as { status: string; settings_revision: number } | undefined;
-
-    if (!campaign || campaign.status !== "configuring") {
-      db.exec("ROLLBACK");
-      return { ok: false, reason: "already_started" };
-    }
-
-    const seatRows = db.prepare("SELECT seat FROM participants WHERE campaign_id = ?").all(
-      campaignId,
-    ) as { seat: number }[];
-    const seats = new Set(seatRows.map((r) => r.seat));
-
-    const approvalRows = db
-      .prepare(
-        `SELECT p.seat AS seat FROM approvals a
-         JOIN participants p ON p.id = a.participant_id
-         WHERE p.campaign_id = ? AND a.revision = ?`,
-      )
-      .all(campaignId, campaign.settings_revision) as { seat: number }[];
-    const approvedSeats = new Set(approvalRows.map((r) => r.seat));
-
-    if (!seats.has(1) || !seats.has(2) || !approvedSeats.has(1) || !approvedSeats.has(2)) {
-      db.exec("ROLLBACK");
-      return { ok: false, reason: "not_ready" };
-    }
-
-    generateWorld(campaignId);
-
-    db.prepare("UPDATE campaigns SET status = 'started' WHERE id = ? AND status = 'configuring'").run(
-      campaignId,
-    );
-    db.exec("COMMIT");
-    return { ok: true };
-  } catch (err) {
-    db.exec("ROLLBACK");
-    throw err;
-  }
-}
-
-// --- Slice 4: fixed world, countries, tiles, headquarters -------------------
-// (WORLD_SIZE and STARTING_ZONES are defined near the top of this file,
-// ahead of the schema/migration code that can call generateWorld() early.)
-
-// Called only from inside an already-open BEGIN IMMEDIATE transaction —
-// either startCampaign's own transaction, or the v2 -> v3 migration's
-// per-campaign backfill transaction. It never opens or closes a transaction
-// itself. A `function` declaration (not a const arrow function) so it's
-// hoisted and callable from the migration code above, which runs earlier in
-// this file's top-level execution than this definition appears.
+// Called only from inside an already-open BEGIN IMMEDIATE transaction — the
+// v2 -> v3 migration's per-campaign backfill transaction. It never opens or
+// closes a transaction itself. A `function` declaration (not a const arrow
+// function) so it's hoisted and callable from the migration code above,
+// which runs earlier in this file's top-level execution than this
+// definition appears.
 function generateWorld(campaignId: number): void {
   const countryIdBySeat = new Map<number, number>();
   const insertCountry = db.prepare("INSERT INTO countries (campaign_id, seat) VALUES (?, ?)");
@@ -694,302 +353,175 @@ function generateWorld(campaignId: number): void {
   }
 }
 
-export interface Country {
+// --- Poker domain: tables and seats (foundation slice) -----------------------
+// Independent of the strategy-war tables above: a poker table is not a
+// renamed campaign, and a poker seat is not a renamed participant. Hand and
+// betting state do not exist yet — this is deliberately only enough to
+// create a table, seat two players, and show each their own chip stack.
+
+export type PokerTableStatus = "waiting_for_players" | "ready";
+
+export interface PokerTable {
   id: number;
-  campaignId: number;
-  seat: number;
-  resourceBalance: number;
+  code: string;
+  status: PokerTableStatus;
+  smallBlind: number;
+  bigBlind: number;
+  startingStack: number;
 }
 
-export interface Tile {
-  row: number;
-  col: number;
-  ownerCountryId: number | null;
+export interface PokerSeat {
+  tableId: number;
+  identityId: number;
+  seatNumber: number;
+  chipStack: number;
 }
 
-export type BuildingType = "headquarters" | "resource";
+// Avoids 0/O/1/I/L, which are easy to misread or mistype when a code is
+// shared out loud or copied by hand. Shared shape with the retired
+// generateCampaignCode, not shared code — poker has its own table and no
+// dependency on anything campaign-specific.
+const TABLE_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const TABLE_CODE_LENGTH = 8;
 
-export interface Building {
-  tileId: number;
-  countryId: number;
-  type: BuildingType;
-  row: number;
-  col: number;
-  settlementCursorMs: number | null;
+function generateTableCode(): string {
+  const bytes = randomBytes(TABLE_CODE_LENGTH);
+  let code = "";
+  for (let i = 0; i < TABLE_CODE_LENGTH; i++) {
+    code += TABLE_CODE_ALPHABET[bytes[i] % TABLE_CODE_ALPHABET.length];
+  }
+  return code;
 }
 
-export interface WorldState {
-  countries: Country[];
-  tiles: Tile[];
-  buildings: Building[];
-}
-
-// Returns the persisted world exactly as it exists right now — there is no
-// cached or in-memory "world" anywhere. A campaign with no world yet
-// (pre-start) comes back with all three lists empty.
-export function getWorldForCampaign(campaignId: number): WorldState {
-  const countryRows = db
-    .prepare(
-      "SELECT id, campaign_id, seat, resource_balance FROM countries WHERE campaign_id = ? ORDER BY seat",
-    )
-    .all(campaignId) as { id: number; campaign_id: number; seat: number; resource_balance: number }[];
-
-  const tileRows = db
-    .prepare("SELECT row, col, owner_country_id FROM tiles WHERE campaign_id = ? ORDER BY row, col")
-    .all(campaignId) as { row: number; col: number; owner_country_id: number | null }[];
-
-  const buildingRows = db
-    .prepare(
-      `SELECT b.tile_id AS tile_id, b.country_id AS country_id, b.type AS type,
-              b.settlement_cursor_ms AS settlement_cursor_ms, t.row AS row, t.col AS col
-       FROM buildings b
-       JOIN tiles t ON t.id = b.tile_id
-       WHERE t.campaign_id = ?`,
-    )
-    .all(campaignId) as {
-    tile_id: number;
-    country_id: number;
-    type: string;
-    settlement_cursor_ms: number | null;
-    row: number;
-    col: number;
-  }[];
-
+function toPokerTable(row: {
+  id: number;
+  code: string;
+  status: string;
+  small_blind: number;
+  big_blind: number;
+  starting_stack: number;
+}): PokerTable {
   return {
-    countries: countryRows.map((r) => ({
-      id: r.id,
-      campaignId: r.campaign_id,
-      seat: r.seat,
-      resourceBalance: r.resource_balance,
-    })),
-    tiles: tileRows.map((r) => ({ row: r.row, col: r.col, ownerCountryId: r.owner_country_id })),
-    buildings: buildingRows.map((r) => ({
-      tileId: r.tile_id,
-      countryId: r.country_id,
-      type: r.type as BuildingType,
-      row: r.row,
-      col: r.col,
-      settlementCursorMs: r.settlement_cursor_ms,
-    })),
+    id: row.id,
+    code: row.code,
+    status: row.status as PokerTableStatus,
+    smallBlind: row.small_blind,
+    bigBlind: row.big_blind,
+    startingStack: row.starting_stack,
   };
 }
 
-// --- Slice 5: resource-building construction --------------------------------
-// No schema change: the v3 `buildings` table already stores (tile_id,
-// country_id, type) with UNIQUE(tile_id), which is everything one more
-// building type needs. Resource balance/production state belongs to a later
-// slice and isn't represented here.
+// Creates the table and seats the creator at seat 1 atomically, with the
+// table's own starting stack. The table code is generated randomly (not
+// derived from the primary key) and retried on the (astronomically
+// unlikely) chance of a collision — same approach the strategy-war product
+// used for campaign codes.
+//
+// Blinds and starting stack are development defaults for the foundation
+// slice (5/10 blinds, 1,000 chips — see docs/poker-final-architecture.md
+// section 9), not yet an approved, permanent product configuration; they
+// are columns, not hard-coded constants scattered through the code, so a
+// later slice can make them configurable without a schema change.
+export function createPokerTable(hostIdentityId: number): PokerTable {
+  const MAX_ATTEMPTS = 5;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const code = generateTableCode();
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const info = db.prepare("INSERT INTO poker_tables (code) VALUES (?)").run(code);
+      const tableId = Number(info.lastInsertRowid);
+      const table = db
+        .prepare("SELECT id, code, status, small_blind, big_blind, starting_stack FROM poker_tables WHERE id = ?")
+        .get(tableId) as {
+        id: number;
+        code: string;
+        status: string;
+        small_blind: number;
+        big_blind: number;
+        starting_stack: number;
+      };
+      db.prepare(
+        "INSERT INTO poker_seats (table_id, identity_id, seat_number, chip_stack) VALUES (?, ?, 1, ?)",
+      ).run(tableId, hostIdentityId, table.starting_stack);
+      db.exec("COMMIT");
+      return toPokerTable(table);
+    } catch (err) {
+      db.exec("ROLLBACK");
+      if (isUniqueConstraintViolation(err)) continue;
+      throw err;
+    }
+  }
+  throw new Error("failed to generate a unique poker table code");
+}
 
-export type BuildResourceResult =
-  | { ok: true }
-  | {
-      ok: false;
-      reason: "not_started" | "not_participant" | "invalid_coordinate" | "not_owned" | "occupied";
-    };
+export function getPokerTableByCode(code: string): PokerTable | undefined {
+  const row = db
+    .prepare("SELECT id, code, status, small_blind, big_blind, starting_stack FROM poker_tables WHERE code = ?")
+    .get(code) as
+    | { id: number; code: string; status: string; small_blind: number; big_blind: number; starting_stack: number }
+    | undefined;
+  return row ? toPokerTable(row) : undefined;
+}
 
-// Authorization is derived entirely server-side: identity -> participant (by
-// campaign_id + identity_id) -> seat -> country (by campaign_id + seat).
-// Nothing about who's asking or which country/tile is targeted comes from
-// the caller except the raw row/col coordinate. All of it is re-checked
-// inside one BEGIN IMMEDIATE transaction, and the final backstop against two
-// concurrent requests landing on the same tile is the existing
-// UNIQUE(tile_id) constraint, not this function's own pre-checks.
-export function buildResourceBuilding(
-  campaignId: number,
-  identityId: number,
-  row: number,
-  col: number,
-): BuildResourceResult {
+export function getSeatsForTable(tableId: number): PokerSeat[] {
+  const rows = db
+    .prepare(
+      `SELECT table_id AS tableId, identity_id AS identityId, seat_number AS seatNumber, chip_stack AS chipStack
+       FROM poker_seats WHERE table_id = ? ORDER BY seat_number`,
+    )
+    .all(tableId) as unknown as PokerSeat[];
+  return rows;
+}
+
+export function getSeatForIdentity(tableId: number, identityId: number): PokerSeat | undefined {
+  const row = db
+    .prepare(
+      `SELECT table_id AS tableId, identity_id AS identityId, seat_number AS seatNumber, chip_stack AS chipStack
+       FROM poker_seats WHERE table_id = ? AND identity_id = ?`,
+    )
+    .get(tableId, identityId) as PokerSeat | undefined;
+  return row;
+}
+
+export type JoinPokerTableResult =
+  | { ok: true; alreadyJoined: boolean; seatNumber: number }
+  | { ok: false; reason: "full" };
+
+// The only open seat for this heads-up foundation slice is seat 2.
+// Concurrency safety comes from the UNIQUE(table_id, seat_number) and
+// UNIQUE(table_id, identity_id) constraints, not from the pre-check below:
+// two concurrent joins can both pass the pre-check, but only one INSERT can
+// win, and the loser's constraint violation is what this function treats as
+// "full" — the same pattern the strategy-war product used for campaign
+// seating. A table that reaches two seated players transitions to "ready"
+// in the same transaction as the seat that filled it.
+export function joinPokerTable(tableId: number, identityId: number): JoinPokerTableResult {
+  const existing = getSeatForIdentity(tableId, identityId);
+  if (existing) {
+    return { ok: true, alreadyJoined: true, seatNumber: existing.seatNumber };
+  }
+
   db.exec("BEGIN IMMEDIATE");
   try {
-    const campaign = db.prepare("SELECT status FROM campaigns WHERE id = ?").get(campaignId) as
-      | { status: string }
+    const table = db.prepare("SELECT starting_stack FROM poker_tables WHERE id = ?").get(tableId) as
+      | { starting_stack: number }
       | undefined;
-    if (!campaign || campaign.status !== "started") {
+    if (!table) {
       db.exec("ROLLBACK");
-      return { ok: false, reason: "not_started" };
+      return { ok: false, reason: "full" };
     }
 
-    const participant = db
-      .prepare("SELECT seat FROM participants WHERE campaign_id = ? AND identity_id = ?")
-      .get(campaignId, identityId) as { seat: number } | undefined;
-    if (!participant) {
-      db.exec("ROLLBACK");
-      return { ok: false, reason: "not_participant" };
-    }
-
-    if (
-      !Number.isInteger(row) ||
-      !Number.isInteger(col) ||
-      row < 0 ||
-      row >= WORLD_SIZE ||
-      col < 0 ||
-      col >= WORLD_SIZE
-    ) {
-      db.exec("ROLLBACK");
-      return { ok: false, reason: "invalid_coordinate" };
-    }
-
-    const country = db
-      .prepare("SELECT id FROM countries WHERE campaign_id = ? AND seat = ?")
-      .get(campaignId, participant.seat) as { id: number } | undefined;
-
-    const tile = country
-      ? (db
-          .prepare("SELECT id, owner_country_id FROM tiles WHERE campaign_id = ? AND row = ? AND col = ?")
-          .get(campaignId, row, col) as { id: number; owner_country_id: number | null } | undefined)
-      : undefined;
-
-    if (!country || !tile || tile.owner_country_id !== country.id) {
-      db.exec("ROLLBACK");
-      return { ok: false, reason: "not_owned" };
-    }
-
-    // One authoritative `now`, captured here and nowhere else, becomes the
-    // building's production start — never a client-submitted timestamp, and
-    // atomic with the insert itself (same transaction).
     db.prepare(
-      "INSERT INTO buildings (tile_id, country_id, type, settlement_cursor_ms) VALUES (?, ?, 'resource', ?)",
-    ).run(tile.id, country.id, Date.now());
+      "INSERT INTO poker_seats (table_id, identity_id, seat_number, chip_stack) VALUES (?, ?, 2, ?)",
+    ).run(tableId, identityId, table.starting_stack);
+    db.prepare("UPDATE poker_tables SET status = 'ready' WHERE id = ?").run(tableId);
     db.exec("COMMIT");
-    return { ok: true };
+    return { ok: true, alreadyJoined: false, seatNumber: 2 };
   } catch (err) {
     db.exec("ROLLBACK");
     if (isUniqueConstraintViolation(err)) {
-      return { ok: false, reason: "occupied" };
+      return { ok: false, reason: "full" };
     }
-    throw err;
-  }
-}
-
-// --- Slice 6: resource settlement --------------------------------------------
-// No continuously-running timer anywhere: production is reconstructed, on
-// read, from each resource building's own persisted settlement_cursor_ms.
-// The frozen campaign resource_preset (immutable since Slice 3's start
-// transaction) is the sole source of the production rate — nothing mutable
-// is duplicated onto each building.
-
-const PRODUCTION_INTERVAL_MS = 10_000;
-
-const PRODUCTION_RATE_BY_PRESET: Record<ResourcePreset, number> = {
-  standard: 10,
-  rapid: 20,
-};
-
-// Settles every resource building owned by `countryId` up to `now`, crediting
-// only complete PRODUCTION_INTERVAL_MS intervals, then adds the total to that
-// country's pooled balance. Must be called from inside an already-open
-// BEGIN IMMEDIATE transaction (like generateWorld) — it never opens or closes
-// one itself, so both of this function's callers below can keep settlement
-// atomic with whatever else they're doing in the same transaction.
-//
-// A cursor is only ever advanced by whole completed intervals, never set to
-// `now` — this is what preserves an unfinished remainder for next time, and
-// it's also what makes a clock that has gone backwards harmless: if `now` is
-// before (or barely after) the stored cursor, elapsed is negative or under
-// one interval, zero intervals are credited, and the cursor is left exactly
-// where it was. A cursor can only move forward, and a balance can only grow.
-function creditCountryProduction(countryId: number, rate: number, now: number): number {
-  const buildings = db
-    .prepare("SELECT id, settlement_cursor_ms FROM buildings WHERE country_id = ? AND type = 'resource'")
-    .all(countryId) as { id: number; settlement_cursor_ms: number | null }[];
-
-  const advanceCursor = db.prepare("UPDATE buildings SET settlement_cursor_ms = ? WHERE id = ?");
-  let totalCredit = 0;
-
-  for (const building of buildings) {
-    const cursor = building.settlement_cursor_ms;
-    if (cursor === null) continue; // defensive: resource buildings always have one
-
-    const elapsed = now - cursor;
-    if (elapsed < PRODUCTION_INTERVAL_MS) continue;
-
-    const completeIntervals = Math.floor(elapsed / PRODUCTION_INTERVAL_MS);
-    const newCursor = cursor + completeIntervals * PRODUCTION_INTERVAL_MS;
-    totalCredit += completeIntervals * rate;
-    advanceCursor.run(newCursor, building.id);
-  }
-
-  if (totalCredit > 0) {
-    db.prepare("UPDATE countries SET resource_balance = resource_balance + ? WHERE id = ?").run(
-      totalCredit,
-      countryId,
-    );
-  }
-
-  const row = db.prepare("SELECT resource_balance FROM countries WHERE id = ?").get(countryId) as {
-    resource_balance: number;
-  };
-  return row.resource_balance;
-}
-
-// Exported only as an internal persistence-layer testing hook: it lets tests
-// supply a controlled `now` instead of sleeping for real seconds. No HTTP
-// route calls this — server.ts only ever calls settleAndGetOwnCountryResources
-// below, which always uses the real server clock. There is no "set time"
-// endpoint anywhere.
-export function settleCountryProductionAt(countryId: number, preset: ResourcePreset, now: number): number {
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    const balance = creditCountryProduction(countryId, PRODUCTION_RATE_BY_PRESET[preset], now);
-    db.exec("COMMIT");
-    return balance;
-  } catch (err) {
-    db.exec("ROLLBACK");
-    throw err;
-  }
-}
-
-export type SettleResourcesResult =
-  | { ok: true; balance: number; seat: number }
-  | { ok: false; reason: "not_started" | "not_participant" };
-
-// The only production entry point reachable over HTTP. Authorization is
-// identity -> participant (by campaign_id + identity_id) -> seat -> country,
-// exactly like construction in Slice 5 — the caller never supplies a country
-// id, and this only ever settles and returns the caller's OWN country, never
-// the opponent's. Time is always Date.now(), captured once for this whole
-// settlement.
-export function settleAndGetOwnCountryResources(
-  campaignId: number,
-  identityId: number,
-): SettleResourcesResult {
-  db.exec("BEGIN IMMEDIATE");
-  try {
-    const campaign = db
-      .prepare("SELECT status, resource_preset FROM campaigns WHERE id = ?")
-      .get(campaignId) as { status: string; resource_preset: string } | undefined;
-
-    if (!campaign || campaign.status !== "started") {
-      db.exec("ROLLBACK");
-      return { ok: false, reason: "not_started" };
-    }
-
-    const participant = db
-      .prepare("SELECT seat FROM participants WHERE campaign_id = ? AND identity_id = ?")
-      .get(campaignId, identityId) as { seat: number } | undefined;
-
-    if (!participant) {
-      db.exec("ROLLBACK");
-      return { ok: false, reason: "not_participant" };
-    }
-
-    const country = db
-      .prepare("SELECT id FROM countries WHERE campaign_id = ? AND seat = ?")
-      .get(campaignId, participant.seat) as { id: number } | undefined;
-
-    if (!country) {
-      db.exec("ROLLBACK");
-      return { ok: false, reason: "not_participant" };
-    }
-
-    const rate = PRODUCTION_RATE_BY_PRESET[campaign.resource_preset as ResourcePreset];
-    const balance = creditCountryProduction(country.id, rate, Date.now());
-
-    db.exec("COMMIT");
-    return { ok: true, balance, seat: participant.seat };
-  } catch (err) {
-    db.exec("ROLLBACK");
     throw err;
   }
 }

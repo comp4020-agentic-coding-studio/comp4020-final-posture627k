@@ -7,6 +7,16 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 // These tests exercise db.ts's schema migration directly, against a
 // synthetic pre-existing database file — not through the running app over
 // HTTP (unlike every other spec file here). They don't need `baseUrl`.
+//
+// The strategy-war product's own business-logic functions (getCampaignByCode
+// etc.) were removed from db.ts along with its HTTP routes when the project
+// pivoted to poker (see docs/poker-final-architecture.md). What must still
+// hold is that the v1 -> v2 -> v3 -> v4 migration chain itself keeps
+// producing exactly the same schema and data it always did, since an old
+// deployment's database must never be silently reinterpreted or lose data.
+// Assertions below read the migrated tables with plain SQL instead, so this
+// file verifies the migration's actual on-disk effect rather than going
+// through application code that no longer exists.
 
 let tempDir: string;
 let previousDataDir: string | undefined;
@@ -100,31 +110,121 @@ function buildV2Database(dir: string): void {
 // vi.resetModules() clears Vitest's own module registry so the next dynamic
 // import re-evaluates db.ts from scratch (fresh top-level migration run)
 // against whatever DATA_DIR is currently set, rather than returning the
-// cached instance from an earlier import in this process.
-async function importFreshDb(): Promise<typeof import("../db.ts")> {
+// cached instance from an earlier import in this process. The import's
+// return value is only ever used for its side effect (running migrations);
+// assertions read the resulting file directly, below.
+async function runMigrations(): Promise<void> {
   vi.resetModules();
-  return import("../db.ts");
+  await import("../db.ts");
+}
+
+// Opens a short-lived raw connection to the already-migrated database file
+// to read it with plain SQL, independent of any db.ts-exported business
+// logic (none of which exists for the strategy-war tables any more).
+function openMigratedDb(dir: string): DatabaseSync {
+  return new DatabaseSync(join(dir, "app.sqlite"));
+}
+
+interface RawCampaign {
+  id: number;
+  code: string;
+  status: string;
+  resourcePreset: string;
+  settingsRevision: number;
+}
+
+function readCampaign(raw: DatabaseSync, code: string): RawCampaign | undefined {
+  return raw
+    .prepare(
+      `SELECT id, code, status, resource_preset AS resourcePreset, settings_revision AS settingsRevision
+       FROM campaigns WHERE code = ?`,
+    )
+    .get(code) as RawCampaign | undefined;
+}
+
+interface RawParticipant {
+  campaignId: number;
+  identityId: number;
+  seat: number;
+  isHost: number;
+}
+
+function readParticipants(raw: DatabaseSync, campaignId: number): RawParticipant[] {
+  return raw
+    .prepare(
+      `SELECT campaign_id AS campaignId, identity_id AS identityId, seat, is_host AS isHost
+       FROM participants WHERE campaign_id = ? ORDER BY seat`,
+    )
+    .all(campaignId) as unknown as RawParticipant[];
+}
+
+interface RawCountry {
+  id: number;
+  seat: number;
+  resourceBalance: number;
+}
+
+interface RawTile {
+  row: number;
+  col: number;
+  ownerCountryId: number | null;
+}
+
+interface RawBuilding {
+  countryId: number;
+  type: string;
+  row: number;
+  col: number;
+  settlementCursorMs: number | null;
+}
+
+interface RawWorld {
+  countries: RawCountry[];
+  tiles: RawTile[];
+  buildings: RawBuilding[];
+}
+
+function readWorld(raw: DatabaseSync, campaignId: number): RawWorld {
+  const countries = raw
+    .prepare(
+      "SELECT id, seat, resource_balance AS resourceBalance FROM countries WHERE campaign_id = ? ORDER BY seat",
+    )
+    .all(campaignId) as unknown as RawCountry[];
+  const tiles = raw
+    .prepare("SELECT row, col, owner_country_id AS ownerCountryId FROM tiles WHERE campaign_id = ? ORDER BY row, col")
+    .all(campaignId) as unknown as RawTile[];
+  const buildings = raw
+    .prepare(
+      `SELECT b.country_id AS countryId, b.type AS type,
+              b.settlement_cursor_ms AS settlementCursorMs, t.row AS row, t.col AS col
+       FROM buildings b JOIN tiles t ON t.id = b.tile_id WHERE t.campaign_id = ?`,
+    )
+    .all(campaignId) as unknown as RawBuilding[];
+  return { countries, tiles, buildings };
 }
 
 it("a v2 campaign still configuring receives no world when migrated to v3", async () => {
   buildV2Database(tempDir);
-  const db = await importFreshDb();
+  await runMigrations();
+  const raw = openMigratedDb(tempDir);
 
-  const campaign = db.getCampaignByCode("CFGV2TST");
+  const campaign = readCampaign(raw, "CFGV2TST");
   expect(campaign).toBeTruthy();
   expect(campaign?.status).toBe("configuring");
 
-  const world = db.getWorldForCampaign(campaign!.id);
+  const world = readWorld(raw, campaign!.id);
   expect(world.countries).toHaveLength(0);
   expect(world.tiles).toHaveLength(0);
   expect(world.buildings).toHaveLength(0);
+  raw.close();
 });
 
 it("an already-started v2 campaign is backfilled with the deterministic world on migration to v3, unchanged otherwise", async () => {
   buildV2Database(tempDir);
-  const db = await importFreshDb();
+  await runMigrations();
+  const raw = openMigratedDb(tempDir);
 
-  const campaign = db.getCampaignByCode("STARTEDV2");
+  const campaign = readCampaign(raw, "STARTEDV2");
   expect(campaign).toBeTruthy();
   // Untouched by the migration: status, preset and revision are exactly
   // what the v2 database already had.
@@ -132,12 +232,12 @@ it("an already-started v2 campaign is backfilled with the deterministic world on
   expect(campaign?.resourcePreset).toBe("rapid");
   expect(campaign?.settingsRevision).toBe(2);
 
-  const participants = db.getParticipantsForCampaign(campaign!.id);
+  const participants = readParticipants(raw, campaign!.id);
   expect(participants).toHaveLength(2);
-  expect(participants.find((p) => p.seat === 1)?.isHost).toBe(true);
-  expect(participants.find((p) => p.seat === 2)?.isHost).toBe(false);
+  expect(participants.find((p) => p.seat === 1)?.isHost).toBe(1);
+  expect(participants.find((p) => p.seat === 2)?.isHost).toBe(0);
 
-  const world = db.getWorldForCampaign(campaign!.id);
+  const world = readWorld(raw, campaign!.id);
   expect(world.countries).toHaveLength(2);
   expect(world.tiles).toHaveLength(64);
   expect(world.buildings).toHaveLength(2);
@@ -156,25 +256,31 @@ it("an already-started v2 campaign is backfilled with the deterministic world on
   );
   expect(seat1Tiles).toHaveLength(4);
   expect(seat2Tiles).toHaveLength(4);
+  raw.close();
 });
 
 it("booting an already-migrated v3 database again does not duplicate the backfilled world", async () => {
   buildV2Database(tempDir);
 
-  const first = await importFreshDb();
-  const campaignFirst = first.getCampaignByCode("STARTEDV2")!;
-  const worldFirst = first.getWorldForCampaign(campaignFirst.id);
+  await runMigrations();
+  const firstRaw = openMigratedDb(tempDir);
+  const campaignFirst = readCampaign(firstRaw, "STARTEDV2")!;
+  const worldFirst = readWorld(firstRaw, campaignFirst.id);
   expect(worldFirst.tiles).toHaveLength(64);
+  firstRaw.close();
 
   // A second, independent import against the same on-disk database: schema
-  // is already at version 3, so the migration block must not run again.
-  const second = await importFreshDb();
-  const campaignSecond = second.getCampaignByCode("STARTEDV2")!;
-  const worldSecond = second.getWorldForCampaign(campaignSecond.id);
+  // is already at version 3 (now 5), so the v2 -> v3 migration block must
+  // not run again.
+  await runMigrations();
+  const secondRaw = openMigratedDb(tempDir);
+  const campaignSecond = readCampaign(secondRaw, "STARTEDV2")!;
+  const worldSecond = readWorld(secondRaw, campaignSecond.id);
 
   expect(worldSecond.countries).toHaveLength(2);
   expect(worldSecond.tiles).toHaveLength(64);
   expect(worldSecond.buildings).toHaveLength(2);
+  secondRaw.close();
 });
 
 // --- Slice 6: schema version 3 -> 4 (resource balance + settlement cursor) --
@@ -324,25 +430,28 @@ function buildV3Database(dir: string): void {
 
 it("a v3 configuring campaign migrates to v4 without inventing gameplay state", async () => {
   buildV3Database(tempDir);
-  const db = await importFreshDb();
+  await runMigrations();
+  const raw = openMigratedDb(tempDir);
 
-  const campaign = db.getCampaignByCode("CFGV3TST")!;
+  const campaign = readCampaign(raw, "CFGV3TST")!;
   expect(campaign.status).toBe("configuring");
 
-  const world = db.getWorldForCampaign(campaign.id);
+  const world = readWorld(raw, campaign.id);
   expect(world.countries).toHaveLength(0);
   expect(world.tiles).toHaveLength(0);
   expect(world.buildings).toHaveLength(0);
+  raw.close();
 });
 
 it("a v3 started world migrates to v4 intact: existing resource building gets a cursor from its own created_at, headquarters stay non-producing, country balances start at 0", async () => {
   buildV3Database(tempDir);
-  const db = await importFreshDb();
+  await runMigrations();
+  const raw = openMigratedDb(tempDir);
 
-  const campaign = db.getCampaignByCode("STARTEDV3")!;
+  const campaign = readCampaign(raw, "STARTEDV3")!;
   expect(campaign.status).toBe("started");
 
-  const world = db.getWorldForCampaign(campaign.id);
+  const world = readWorld(raw, campaign.id);
   expect(world.countries).toHaveLength(2);
   for (const country of world.countries) {
     expect(country.resourceBalance).toBe(0);
@@ -357,18 +466,22 @@ it("a v3 started world migrates to v4 intact: existing resource building gets a 
   const resourceBuildings = world.buildings.filter((b) => b.type === "resource");
   expect(resourceBuildings).toHaveLength(1);
   expect(resourceBuildings[0]?.settlementCursorMs).toBe(new Date(RESOURCE_BUILDING_CREATED_AT).getTime());
+  raw.close();
 });
 
 it("booting an already-migrated v4 database again changes nothing", async () => {
   buildV3Database(tempDir);
 
-  const first = await importFreshDb();
-  const campaign1 = first.getCampaignByCode("STARTEDV3")!;
-  const world1 = first.getWorldForCampaign(campaign1.id);
+  await runMigrations();
+  const raw1 = openMigratedDb(tempDir);
+  const campaign1 = readCampaign(raw1, "STARTEDV3")!;
+  const world1 = readWorld(raw1, campaign1.id);
+  raw1.close();
 
-  const second = await importFreshDb();
-  const campaign2 = second.getCampaignByCode("STARTEDV3")!;
-  const world2 = second.getWorldForCampaign(campaign2.id);
+  await runMigrations();
+  const raw2 = openMigratedDb(tempDir);
+  const campaign2 = readCampaign(raw2, "STARTEDV3")!;
+  const world2 = readWorld(raw2, campaign2.id);
 
   expect(world2.countries).toHaveLength(world1.countries.length);
   expect(world2.countries.map((c) => c.resourceBalance)).toEqual(world1.countries.map((c) => c.resourceBalance));
@@ -376,18 +489,20 @@ it("booting an already-migrated v4 database again changes nothing", async () => 
   expect(world2.buildings.map((b) => b.settlementCursorMs)).toEqual(
     world1.buildings.map((b) => b.settlementCursorMs),
   );
+  raw2.close();
 });
 
 it("the existing v2-chain campaigns still reach schema v4 correctly (balance 0, no resource buildings to backfill)", async () => {
   buildV2Database(tempDir);
-  const db = await importFreshDb();
+  await runMigrations();
+  const raw = openMigratedDb(tempDir);
 
-  const configuring = db.getCampaignByCode("CFGV2TST")!;
-  const configuringWorld = db.getWorldForCampaign(configuring.id);
+  const configuring = readCampaign(raw, "CFGV2TST")!;
+  const configuringWorld = readWorld(raw, configuring.id);
   expect(configuringWorld.countries).toHaveLength(0);
 
-  const started = db.getCampaignByCode("STARTEDV2")!;
-  const startedWorld = db.getWorldForCampaign(started.id);
+  const started = readCampaign(raw, "STARTEDV2")!;
+  const startedWorld = readWorld(raw, started.id);
   expect(startedWorld.countries).toHaveLength(2);
   for (const country of startedWorld.countries) {
     expect(country.resourceBalance).toBe(0);
@@ -396,6 +511,7 @@ it("the existing v2-chain campaigns still reach schema v4 correctly (balance 0, 
   for (const hq of startedWorld.buildings) {
     expect(hq.settlementCursorMs).toBeNull();
   }
+  raw.close();
 });
 
 // Builds a pure schema-version-1 database: no resource_preset/settings_revision
@@ -443,25 +559,32 @@ function buildV1Database(dir: string): void {
   db.close();
 }
 
-it("a pure schema v1 database migrates through v2 -> v3 -> v4 successfully", async () => {
+it("a pure schema v1 database migrates through v2 -> v3 -> v4 -> v5 successfully", async () => {
   buildV1Database(tempDir);
-  const db = await importFreshDb();
+  await runMigrations();
+  const raw = openMigratedDb(tempDir);
 
-  const campaign = db.getCampaignByCode("V1CHAIN1")!;
+  const campaign = readCampaign(raw, "V1CHAIN1")!;
   expect(campaign.status).toBe("configuring");
   expect(campaign.resourcePreset).toBe("standard"); // v1 -> v2 default applied
   expect(campaign.settingsRevision).toBe(1);
 
-  const participants = db.getParticipantsForCampaign(campaign.id);
+  const participants = readParticipants(raw, campaign.id);
   expect(participants).toHaveLength(1);
-  expect(participants[0]?.isHost).toBe(true);
+  expect(participants[0]?.isHost).toBe(1);
 
   // Still configuring the whole way through: no world invented by any
   // migration step along the v1 -> v2 -> v3 -> v4 chain.
-  const world = db.getWorldForCampaign(campaign.id);
+  const world = readWorld(raw, campaign.id);
   expect(world.countries).toHaveLength(0);
   expect(world.tiles).toHaveLength(0);
   expect(world.buildings).toHaveLength(0);
+
+  // And the v4 -> v5 poker migration also ran: the new tables exist and are
+  // empty, having nothing to do with this pre-existing campaign data.
+  const pokerTableCount = raw.prepare("SELECT COUNT(*) AS n FROM poker_tables").get() as { n: number };
+  expect(pokerTableCount.n).toBe(0);
+  raw.close();
 });
 
 it("a schema version newer than this build supports fails clearly", async () => {
@@ -470,5 +593,118 @@ it("a schema version newer than this build supports fails clearly", async () => 
   raw.exec("PRAGMA user_version = 99");
   raw.close();
 
-  await expect(importFreshDb()).rejects.toThrow(/newer than this build supports/);
+  await expect(runMigrations()).rejects.toThrow(/newer than this build supports/);
+});
+
+it("a v4 database migrates to v5 by adding the poker tables, empty and ready", async () => {
+  // A v4 database is exactly a v3 database (see buildV3Database) with the
+  // two v3 -> v4 columns already applied and no resource buildings — the
+  // easiest way to produce one here is to run the real v1 -> v4 chain via
+  // runMigrations() first with SCHEMA_VERSION temporarily capped, which this
+  // file has no hook for. Instead this test starts from a pure v4 shape
+  // built the same explicit way the other fixtures above are: a superset of
+  // buildV3Database's tables with the v3 -> v4 columns already present.
+  const db = new DatabaseSync(join(tempDir, "app.sqlite"));
+  db.exec("PRAGMA journal_mode = WAL");
+  db.exec(`
+    CREATE TABLE identities (
+      id INTEGER PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
+    CREATE TABLE campaigns (
+      id INTEGER PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'configuring',
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      resource_preset TEXT NOT NULL DEFAULT 'standard',
+      settings_revision INTEGER NOT NULL DEFAULT 1
+    );
+    CREATE TABLE participants (
+      id INTEGER PRIMARY KEY,
+      campaign_id INTEGER NOT NULL REFERENCES campaigns(id),
+      identity_id INTEGER NOT NULL REFERENCES identities(id),
+      seat INTEGER NOT NULL CHECK (seat IN (1, 2)),
+      is_host INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      UNIQUE (campaign_id, seat),
+      UNIQUE (campaign_id, identity_id)
+    );
+    CREATE TABLE approvals (
+      id INTEGER PRIMARY KEY,
+      participant_id INTEGER NOT NULL REFERENCES participants(id),
+      revision INTEGER NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      UNIQUE (participant_id, revision)
+    );
+    CREATE TABLE countries (
+      id INTEGER PRIMARY KEY,
+      campaign_id INTEGER NOT NULL REFERENCES campaigns(id),
+      seat INTEGER NOT NULL CHECK (seat IN (1, 2)),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      resource_balance INTEGER NOT NULL DEFAULT 0 CHECK (resource_balance >= 0),
+      UNIQUE (campaign_id, seat)
+    );
+    CREATE TABLE tiles (
+      id INTEGER PRIMARY KEY,
+      campaign_id INTEGER NOT NULL REFERENCES campaigns(id),
+      row INTEGER NOT NULL CHECK (row BETWEEN 0 AND 7),
+      col INTEGER NOT NULL CHECK (col BETWEEN 0 AND 7),
+      owner_country_id INTEGER REFERENCES countries(id),
+      UNIQUE (campaign_id, row, col)
+    );
+    CREATE TABLE buildings (
+      id INTEGER PRIMARY KEY,
+      tile_id INTEGER NOT NULL UNIQUE REFERENCES tiles(id),
+      country_id INTEGER NOT NULL REFERENCES countries(id),
+      type TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      settlement_cursor_ms INTEGER CHECK (settlement_cursor_ms IS NULL OR settlement_cursor_ms >= 0)
+    );
+    CREATE UNIQUE INDEX one_headquarters_per_country
+      ON buildings(country_id)
+      WHERE type = 'headquarters';
+  `);
+  db.exec("PRAGMA user_version = 4");
+  db.close();
+
+  await runMigrations();
+  const raw = openMigratedDb(tempDir);
+
+  const tables = raw
+    .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('poker_tables', 'poker_seats')")
+    .all() as { name: string }[];
+  expect(tables.map((t) => t.name).sort()).toEqual(["poker_seats", "poker_tables"]);
+
+  const tableCount = raw.prepare("SELECT COUNT(*) AS n FROM poker_tables").get() as { n: number };
+  const seatCount = raw.prepare("SELECT COUNT(*) AS n FROM poker_seats").get() as { n: number };
+  expect(tableCount.n).toBe(0);
+  expect(seatCount.n).toBe(0);
+
+  // The pre-existing v4 campaign data is completely untouched by the v5
+  // poker migration.
+  const campaignCount = raw.prepare("SELECT COUNT(*) AS n FROM campaigns").get() as { n: number };
+  expect(campaignCount.n).toBe(0); // none were inserted into this fixture, confirming no backfill invented one
+  raw.close();
+});
+
+it("booting an already-migrated v5 database again does not duplicate or alter the poker tables", async () => {
+  await runMigrations();
+  const firstRaw = openMigratedDb(tempDir);
+  firstRaw.prepare("INSERT INTO poker_tables (code) VALUES ('REALTBL1')").run();
+  const tableRow = firstRaw.prepare("SELECT id FROM poker_tables WHERE code = 'REALTBL1'").get() as {
+    id: number;
+  };
+  firstRaw.close();
+
+  await runMigrations();
+  const secondRaw = openMigratedDb(tempDir);
+  const stillThere = secondRaw.prepare("SELECT id, code FROM poker_tables WHERE id = ?").get(tableRow.id) as
+    | { id: number; code: string }
+    | undefined;
+  expect(stillThere?.code).toBe("REALTBL1");
+
+  const tableCount = secondRaw.prepare("SELECT COUNT(*) AS n FROM poker_tables").get() as { n: number };
+  expect(tableCount.n).toBe(1);
+  secondRaw.close();
 });
