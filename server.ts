@@ -46,6 +46,7 @@ import {
 } from "./db.ts";
 import type { GameMode as CardClashMode, Seat as CardClashSeatNumber } from "./card-clash/types.ts";
 import { buildCardClashTransition, parseCardClashActionEnvelope } from "./card-clash/action-http.ts";
+import { publishCardClashRoomEvent, subscribeToCardClashRoom } from "./card-clash/realtime.ts";
 
 // Co-located with this file so it resolves the same way locally and in the
 // Docker image, regardless of the process's working directory.
@@ -1201,6 +1202,9 @@ app.post("/api/card-clash/rooms", async (c) => {
   }
 
   const room = createCardClashRoom(mode as CardClashMode, identityId);
+  // Harmless with zero listeners (nobody could have subscribed to a room
+  // that didn't exist a moment ago) — published anyway for consistency.
+  publishCardClashRoomEvent(room.id, "room");
   return c.json(
     { code: room.code, mode: room.mode, status: room.status, ownSeat: 1, requiredSeats: CARD_CLASH_SEAT_COUNT[room.mode] },
     201,
@@ -1238,6 +1242,10 @@ app.post("/api/card-clash/rooms/:code/join", (c) => {
     const status = result.reason === "room_not_found" ? 404 : 409;
     return c.json({ error: result.reason }, status);
   }
+  // Only a genuinely new seat is a shared state change worth telling
+  // anyone else about — the same identity idempotently reconnecting must
+  // not publish (matches poker's own established join-notification rule).
+  if (!result.alreadyJoined) publishCardClashRoomEvent(room.id, "room");
   return c.json({ seatNumber: result.seatNumber, alreadyJoined: result.alreadyJoined });
 });
 
@@ -1260,6 +1268,7 @@ app.post("/api/card-clash/rooms/:code/ready", async (c) => {
     const status = result.reason === "not_a_player" ? 403 : 409;
     return c.json({ error: result.reason }, status);
   }
+  publishCardClashRoomEvent(room.id, "room");
   return c.json({ ready });
 });
 
@@ -1267,12 +1276,23 @@ app.post("/api/card-clash/rooms/:code/start", (c) => {
   const room = getCardClashRoomByCode(c.req.param("code"));
   if (!room) return c.json({ error: "room_not_found" }, 404);
 
+  // Captured BEFORE calling startCardClashMatch: only a room that was
+  // genuinely still 'waiting' at the start of this request can have this
+  // specific call be the one that truly started the match — a repeated
+  // start (room already 'active'/'complete') returns the same existing
+  // match idempotently and must not publish again. startCardClashMatch's
+  // own result type carries no such flag, so this is the smallest reliable
+  // way to tell the two cases apart without any storage-layer change.
+  const wasWaiting = room.status === "waiting";
+
   const identityId = c.get("identityId");
   const result = startCardClashMatch(room.id, identityId);
   if (!result.ok) {
     const status = result.reason === "not_the_host" ? 403 : result.reason === "room_not_found" ? 404 : 409;
     return c.json({ error: result.reason }, status);
   }
+
+  if (wasWaiting) publishCardClashRoomEvent(room.id, "match");
 
   const viewerSeat = getCardClashSeatForIdentity(room.id, identityId)?.seatNumber as CardClashSeatNumber | undefined;
   return c.json(projectCardClashMatchForViewer(result.match, viewerSeat));
@@ -1294,6 +1314,66 @@ app.get("/api/card-clash/rooms/:code/state", (c) => {
   if (!match) return c.json({ error: "match_not_found" }, 404);
 
   return c.json(projectCardClashMatchForViewer(match, seat.seatNumber as CardClashSeatNumber));
+});
+
+// Invalidation-only SSE (D4B): never a game snapshot, just "something in
+// this room changed, go refetch it" — a client refetches the already
+// privacy-filtered GET /rooms/:code (scope "room") or GET
+// /rooms/:code/state (scope "match"). Mirrors the existing poker SSE
+// route's own structure exactly (participant-gated before the stream
+// opens, onAbort registered before any await, a heartbeat so intermediate
+// proxies don't treat a quiet connection as dead), against the SEPARATE
+// card-clash/realtime.ts hub — never realtime.ts itself, so there is no
+// risk of a poker table id and a Card Clash room id cross-notifying each
+// other. An eliminated player still holds their seat row, so they pass the
+// same participant check as everyone else — exactly the intended
+// read-only spectator access (docs/card-clash-rules.md §7).
+app.get("/api/card-clash/rooms/:code/events", (c) => {
+  const room = getCardClashRoomByCode(c.req.param("code"));
+  if (!room) return notFoundPage(c);
+
+  const identityId = c.get("identityId");
+  const seat = getCardClashSeatForIdentity(room.id, identityId);
+  if (!seat) {
+    return c.json({ error: "not_a_player" }, 403);
+  }
+
+  return streamSSE(c, async (stream) => {
+    const unsubscribe = subscribeToCardClashRoom(room.id, async (scope) => {
+      await stream.writeSSE({ event: "invalidate", data: JSON.stringify({ scope }) });
+    });
+
+    const heartbeat = setInterval(() => {
+      stream.writeSSE({ event: "heartbeat", data: "" }).catch(() => {});
+    }, HEARTBEAT_INTERVAL_MS);
+
+    // Registered before any await, for the same reason the poker SSE route
+    // above does this: a client that disconnects before the "ready" write
+    // completes could otherwise trigger abort() before this listener
+    // exists, leaking the heartbeat interval and the hub subscription for
+    // the process's lifetime.
+    let cleanedUp = false;
+    function cleanup(): void {
+      if (cleanedUp) return;
+      cleanedUp = true;
+      clearInterval(heartbeat);
+      unsubscribe();
+    }
+
+    const aborted = new Promise<void>((resolve) => {
+      stream.onAbort(() => {
+        cleanup();
+        resolve();
+      });
+    });
+
+    // Transport-open signal, not a gameplay event — a reconnecting client
+    // treats this exactly like an "invalidate" (refetch both room and
+    // match views) since it may have missed updates while disconnected.
+    await stream.writeSSE({ event: "ready", data: "" });
+
+    await aborted;
+  });
 });
 
 // Defense-in-depth beyond SameSite=Lax, scoped to this new mutation route
@@ -1393,6 +1473,12 @@ app.post("/api/card-clash/rooms/:code/actions", async (c) => {
       status,
     );
   }
+
+  // Only a genuinely new, effective action is worth telling anyone else
+  // about — an idempotent replay of an already-applied request must not
+  // publish again (reuses the existing `duplicate` flag already returned
+  // by applyCardClashTransition — no new storage-layer work needed).
+  if (!result.duplicate) publishCardClashRoomEvent(room.id, "match");
 
   return c.json({
     duplicate: result.duplicate,
