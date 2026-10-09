@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { playHeal, respondToAttack, respondToRescue } from "../card-clash/combat.ts";
+import { discardCards } from "../card-clash/engine.ts";
 import { CARD_CLASH_DEADLINE_MS } from "../card-clash/timers.ts";
 import type { GameMode, MatchState, Seat } from "../card-clash/types.ts";
 import type { PersistedCardClashMatch } from "../db.ts";
@@ -506,4 +507,73 @@ it("26. a terminal match stops all future timers", () => {
   expect(reconciled.applied).toBe(false);
   expect(reconciled.deadline).toBeNull();
   expect(db.getCardClashMatchById(matchId)!.version).toBe(match0.version + 1);
+});
+
+// --- Atomic deadline enforcement inside applyCardClashTransition ----------
+
+const bump = (state: MatchState) => ({ ok: true as const, state: { ...state, version: state.version + 1 } });
+
+function matchWithMainDeadline(): { matchId: number; version: number; expiresAt: number } {
+  const { matchId } = setUpStartedMatch("1v1");
+  const seat = db.getCardClashMatchById(matchId)!.state.activeSeat;
+  forceState(matchId, (state) => setHand(state, seat, state.players.get(seat)!.hp));
+  const d = db.getCardClashDeadline(matchId)!;
+  return { matchId, version: d.version, expiresAt: d.expiresAt };
+}
+
+it("27. an action at deadline minus 1 ms succeeds", () => {
+  const { matchId, version, expiresAt } = matchWithMainDeadline();
+  const result = db.applyCardClashTransition({ matchId, requestId: freshId(), expectedVersion: version, transition: bump, nowMs: expiresAt - 1 });
+  expect(result.ok && !result.duplicate).toBe(true);
+});
+
+it("28/29. an action exactly at, or after, the deadline is rejected with deadline_expired and nothing mutates", () => {
+  for (const offset of [0, 5_000]) {
+    const { matchId, version, expiresAt } = matchWithMainDeadline();
+    const before = db.getCardClashMatchById(matchId)!;
+    const result = db.applyCardClashTransition({ matchId, requestId: freshId(), expectedVersion: version, transition: bump, nowMs: expiresAt + offset });
+    expect(result).toEqual({ ok: false, reason: "deadline_expired" });
+    const after = db.getCardClashMatchById(matchId)!;
+    expect(after.version).toBe(before.version);
+    expect(after.state).toEqual(before.state);
+    expect(db.getCardClashDeadline(matchId)).toEqual({ matchId, version, expiresAt, responderSeat: before.state.activeSeat });
+  }
+});
+
+it("30. a fresh requestId cannot bypass an expired deadline even though the state version still matches (timer ran late)", () => {
+  const { matchId, version, expiresAt } = matchWithMainDeadline();
+  expect(db.getCardClashMatchById(matchId)!.version).toBe(version); // scheduler never ran
+  for (let i = 0; i < 3; i++) {
+    const r = db.applyCardClashTransition({ matchId, requestId: freshId(), expectedVersion: version, transition: bump, nowMs: expiresAt + 1 });
+    expect(r).toEqual({ ok: false, reason: "deadline_expired" });
+  }
+});
+
+it("31. an already-committed requestId replays idempotently after the deadline and never executes again", () => {
+  const { matchId, version, expiresAt } = matchWithMainDeadline();
+  const requestId = freshId();
+  const first = db.applyCardClashTransition({ matchId, requestId, expectedVersion: version, transition: bump, nowMs: expiresAt - 1 });
+  expect(first.ok && !first.duplicate).toBe(true);
+  const versionAfter = db.getCardClashMatchById(matchId)!.version;
+
+  const replay = db.applyCardClashTransition({ matchId, requestId, expectedVersion: version, transition: bump, nowMs: expiresAt + 60_000 });
+  expect(replay.ok && replay.duplicate).toBe(true);
+  expect(db.getCardClashMatchById(matchId)!.version).toBe(versionAfter);
+});
+
+it("32. manual DISCARD (inactive deadline) is never blocked by the expiry check", () => {
+  const { matchId } = setUpStartedMatch("1v1");
+  const match = db.getCardClashMatchById(matchId)!;
+  const seat = match.state.activeSeat;
+  const player = match.state.players.get(seat)!;
+  expect(db.getCardClashDeadline(matchId)).toBeUndefined();
+  const ids = player.hand.slice(0, player.hand.length - player.hp).map((c) => c.id);
+  const result = db.applyCardClashTransition({
+    matchId,
+    requestId: freshId(),
+    expectedVersion: match.version,
+    transition: (state) => discardCards(state, seat, ids),
+    nowMs: Date.now() + 10 * 60_000,
+  });
+  expect(result.ok && !result.duplicate).toBe(true);
 });

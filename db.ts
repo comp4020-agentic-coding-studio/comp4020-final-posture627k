@@ -1862,7 +1862,7 @@ export type ApplyCardClashTransitionResult =
     }
   | {
       readonly ok: false;
-      readonly reason: "match_not_found" | "stale_version" | "request_id_conflict" | "transition_rejected";
+      readonly reason: "match_not_found" | "stale_version" | "request_id_conflict" | "transition_rejected" | "deadline_expired";
       readonly detail?: unknown;
     };
 
@@ -1903,10 +1903,14 @@ export interface ApplyCardClashTransitionParams {
 // documented, deliberate limitation of this intentionally action-agnostic
 // interface, not an oversight.
 export function applyCardClashTransition(params: ApplyCardClashTransitionParams): ApplyCardClashTransitionResult {
-  const { matchId, requestId, expectedVersion, transition, nowMs = Date.now() } = params;
+  const { matchId, requestId, expectedVersion, transition } = params;
 
   db.exec("BEGIN IMMEDIATE");
   try {
+    // Decision time is read only AFTER the write lock is held (production),
+    // so no earlier HTTP-request timestamp can make an expired action look
+    // valid. `params.nowMs` exists solely for deterministic test clocks.
+    const nowMs = params.nowMs ?? Date.now();
     const row = getCardClashMatchRowById(matchId);
     if (!row) {
       db.exec("ROLLBACK");
@@ -1927,6 +1931,17 @@ export function applyCardClashTransition(params: ApplyCardClashTransitionParams)
     if (row.version !== expectedVersion) {
       db.exec("ROLLBACK");
       return { ok: false, reason: "stale_version" };
+    }
+
+    // Authoritative deadline recheck inside this same transaction, BEFORE
+    // the pure transition runs: an active deadline for this exact version
+    // that has already passed (now >= expires_at) rejects the action with
+    // no mutation. An inactive row (terminal match / manual DISCARD block)
+    // never blocks.
+    const activeDeadline = toPersistedCardClashDeadline(getCardClashDeadlineRow(matchId));
+    if (activeDeadline && activeDeadline.version === row.version && nowMs >= activeDeadline.expiresAt) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "deadline_expired" };
     }
 
     const currentState = deserializeCardClashMatchState(row.state_json);
