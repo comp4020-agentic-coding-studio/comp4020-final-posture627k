@@ -68,14 +68,17 @@ function setUpReadyRoom(
   return { roomId: room.id, roomCode: room.code, identityIds };
 }
 
-it("1. a fresh database migrates to schema version 7 with all Card Clash tables present", () => {
-  expect(rawUserVersion()).toBe(7);
+it("1. a fresh database migrates to the current schema version with all Card Clash tables present", () => {
+  // D4C-1 bumped SCHEMA_VERSION 7 -> 8 to add card_clash_deadlines
+  // (additive only — see db.ts's own v7->v8 migration comment).
+  expect(rawUserVersion()).toBe(8);
   const raw = openRaw();
   const tables = raw
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'card_clash_%' ORDER BY name")
     .all() as { name: string }[];
   raw.close();
   expect(tables.map((t) => t.name)).toEqual([
+    "card_clash_deadlines",
     "card_clash_match_actions",
     "card_clash_matches",
     "card_clash_rooms",
@@ -83,7 +86,7 @@ it("1. a fresh database migrates to schema version 7 with all Card Clash tables 
   ]);
 });
 
-it("2. upgrading an existing database to v7 preserves prior identity and poker data, and re-running initialization twice is safe", async () => {
+it("2. upgrading an existing database to the current version preserves prior identity and poker data, and re-running initialization twice is safe", async () => {
   const identity = db.createIdentity(db.hashToken("pre-existing-token"));
   const table = db.createPokerTable(identity.id);
 
@@ -98,14 +101,14 @@ it("2. upgrading an existing database to v7 preserves prior identity and poker d
   raw.close();
 
   const reopened1 = await reopen();
-  expect(rawUserVersion()).toBe(7);
+  expect(rawUserVersion()).toBe(8);
   expect(reopened1.getPokerTableByCode(table.code)).toMatchObject({ id: table.id, code: table.code });
   expect(reopened1.findIdentityByTokenHash(reopened1.hashToken("pre-existing-token"))).toEqual({ id: identity.id });
 
-  // A second restart (already at v7 this time) must not destroy anything either.
+  // A second restart (already at the current version this time) must not destroy anything either.
   const reopened2 = await reopen();
   expect(reopened2.getPokerTableByCode(table.code)).toMatchObject({ id: table.id, code: table.code });
-  expect(rawUserVersion()).toBe(7);
+  expect(rawUserVersion()).toBe(8);
 });
 
 it("3. rooms can be created in each supported mode, and the host always receives seat 1", () => {

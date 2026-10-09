@@ -18,7 +18,12 @@ import { nextStreet as computeNextStreet, shouldAdvanceStreet, isReadyForSettlem
 import { settleHand, type SettlementPlan, type SettlementRejectionReason } from "./poker/settlement.ts";
 import type { RandomInt } from "./card-clash/deck.ts";
 import { initializeMatch as initializeCardClashMatch } from "./card-clash/engine.ts";
-import type { GameMode as CardClashMode, MatchState as CardClashMatchState } from "./card-clash/types.ts";
+import type { GameMode as CardClashMode, MatchState as CardClashMatchState, Seat as CardClashSeatNumber } from "./card-clash/types.ts";
+import {
+  applyCardClashTimeoutTransition,
+  computeNextCardClashDeadline,
+  type CardClashDeadlineInfo,
+} from "./card-clash/timers.ts";
 
 // Schema version for this file, tracked via SQLite's own PRAGMA user_version.
 // A fresh/empty data directory starts at 0; this module brings it to
@@ -38,8 +43,10 @@ import type { GameMode as CardClashMode, MatchState as CardClashMatchState } fro
 // Version 7 adds the Card Clash domain (rooms/seats/matches/match actions)
 // as a further new, independent set of tables — poker's own tables and data
 // are untouched; no poker record is ever copied or reinterpreted as a Card
-// Clash one.
-const SCHEMA_VERSION = 7;
+// Clash one. Version 8 adds one more additive Card Clash table (durable
+// action/response deadlines for the v2.6 10-second timers, docs/card-clash-
+// rules.md §11) — nothing from v1-v7 is touched.
+const SCHEMA_VERSION = 8;
 
 // The fixed Crit 8 world layout. Defined here, ahead of the schema/migration
 // code below, because the v2 -> v3 migration can call generateWorld() (to
@@ -452,6 +459,41 @@ if (currentVersion < 7) {
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       UNIQUE (match_id, request_id),
       UNIQUE (match_id, resulting_version)
+    );
+  `);
+}
+
+// Migration: schema version 7 -> 8 (Card Clash v2.6 durable action/response
+// deadlines, docs/card-clash-rules.md §11, D4C-1). Additive only; v1-v7 are
+// completely untouched.
+//
+// Exactly one row per match, holding whatever deadline currently applies —
+// never a history of past deadlines. `version` is the card_clash_matches
+// row's own version this deadline was computed for: db.ts only ever acts on
+// this row after confirming it still matches the match's CURRENT version,
+// which is what makes an obsolete/duplicate timer callback a guaranteed
+// no-op (docs §11 "a server restart... must resume and reconcile", "an
+// expired action and a valid action... must never both succeed"). `active`
+// is the explicit "no timer applies right now" flag — a terminal match or
+// an unresolved DISCARD block (see card-clash/timers.ts) still writes a row
+// here, just with active = 0 and no expiry/responder, so there is never any
+// ambiguity between "no row yet" and "deliberately no timer right now".
+// `expires_at` is stored as integer epoch milliseconds (server time only,
+// never a client-supplied value) rather than the TEXT timestamps used
+// elsewhere in this file, since it is compared numerically against an
+// injectable clock far more often than it is read by a human.
+if (currentVersion < 8) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS card_clash_deadlines (
+      match_id INTEGER PRIMARY KEY REFERENCES card_clash_matches(id),
+      version INTEGER NOT NULL CHECK (version > 0),
+      expires_at INTEGER,
+      responder_seat INTEGER CHECK (responder_seat IS NULL OR responder_seat BETWEEN 1 AND 4),
+      active INTEGER NOT NULL DEFAULT 0 CHECK (active IN (0, 1)),
+      CHECK (
+        (active = 1 AND expires_at IS NOT NULL AND responder_seat IS NOT NULL) OR
+        (active = 0 AND expires_at IS NULL AND responder_seat IS NULL)
+      )
     );
   `);
 }
@@ -1641,8 +1683,81 @@ export function getCardClashMatchForRoom(roomId: number): PersistedCardClashMatc
   return row ? toPersistedCardClashMatch(row) : undefined;
 }
 
+// --- v2.6 action/response deadlines (D4C-1, docs/card-clash-rules.md §11) --
+
+export interface PersistedCardClashDeadline {
+  readonly matchId: number;
+  readonly version: number;
+  readonly expiresAt: number;
+  readonly responderSeat: CardClashSeatNumber;
+}
+
+interface CardClashDeadlineRow {
+  match_id: number;
+  version: number;
+  expires_at: number | null;
+  responder_seat: number | null;
+  active: number;
+}
+
+function getCardClashDeadlineRow(matchId: number): CardClashDeadlineRow | undefined {
+  return db
+    .prepare("SELECT match_id, version, expires_at, responder_seat, active FROM card_clash_deadlines WHERE match_id = ?")
+    .get(matchId) as CardClashDeadlineRow | undefined;
+}
+
+function toPersistedCardClashDeadline(row: CardClashDeadlineRow | undefined): PersistedCardClashDeadline | undefined {
+  if (!row || !row.active) return undefined;
+  return {
+    matchId: row.match_id,
+    version: row.version,
+    expiresAt: row.expires_at!,
+    responderSeat: row.responder_seat as CardClashSeatNumber,
+  };
+}
+
+// Only ever called from inside an already-open transaction (startCardClash-
+// Match/applyCardClashTransition/processCardClashTimeout) — one row per
+// match, replaced in place every time, never a growing history.
+function upsertCardClashDeadlineInTx(matchId: number, version: number, deadline: CardClashDeadlineInfo | null): void {
+  db.prepare(
+    `INSERT INTO card_clash_deadlines (match_id, version, expires_at, responder_seat, active)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT (match_id) DO UPDATE SET
+       version = excluded.version,
+       expires_at = excluded.expires_at,
+       responder_seat = excluded.responder_seat,
+       active = excluded.active`,
+  ).run(matchId, version, deadline?.expiresAt ?? null, deadline?.responderSeat ?? null, deadline ? 1 : 0);
+}
+
+// Public read used by the scheduler (card-clash/scheduler.ts), tests, and
+// read-only HTTP projections — undefined means "no timer currently applies"
+// (terminal match, or the unresolved DISCARD block), never a real row with
+// stale/garbage data.
+export function getCardClashDeadline(matchId: number): PersistedCardClashDeadline | undefined {
+  return toPersistedCardClashDeadline(getCardClashDeadlineRow(matchId));
+}
+
+// Startup-reconciliation support only: every match whose deadline row is
+// currently marked active, paired with its room id (the scheduler needs
+// both to re-arm a real timer and to publish to the right SSE room). Scoped
+// to a small, bounded set — only matches with a live timer, never every
+// match ever played.
+export function listActiveCardClashDeadlineMatches(): { readonly matchId: number; readonly roomId: number }[] {
+  const rows = db
+    .prepare(
+      `SELECT d.match_id AS match_id, m.room_id AS room_id
+       FROM card_clash_deadlines d
+       JOIN card_clash_matches m ON m.id = d.match_id
+       WHERE d.active = 1`,
+    )
+    .all() as { match_id: number; room_id: number }[];
+  return rows.map((r) => ({ matchId: r.match_id, roomId: r.room_id }));
+}
+
 export type StartCardClashMatchResult =
-  | { readonly ok: true; readonly match: PersistedCardClashMatch }
+  | { readonly ok: true; readonly match: PersistedCardClashMatch; readonly deadline: PersistedCardClashDeadline | undefined }
   | {
       readonly ok: false;
       readonly reason: "room_not_found" | "not_the_host" | "seats_not_full" | "not_all_ready";
@@ -1661,6 +1776,7 @@ export function startCardClashMatch(
   roomId: number,
   hostIdentityId: number,
   randomSource?: RandomInt,
+  nowMs: number = Date.now(),
 ): StartCardClashMatchResult {
   db.exec("BEGIN IMMEDIATE");
   try {
@@ -1676,11 +1792,13 @@ export function startCardClashMatch(
       const existingRow = db
         .prepare("SELECT id, room_id, version, state_json FROM card_clash_matches WHERE room_id = ?")
         .get(roomId) as CardClashMatchRow | undefined;
-      db.exec("ROLLBACK"); // read-only path: nothing was written
       if (!existingRow) {
+        db.exec("ROLLBACK");
         throw new Error(`card clash room ${roomId} is marked started but has no persisted match`);
       }
-      return { ok: true, match: toPersistedCardClashMatch(existingRow) };
+      const existingDeadline = toPersistedCardClashDeadline(getCardClashDeadlineRow(existingRow.id));
+      db.exec("ROLLBACK"); // read-only path: nothing was written
+      return { ok: true, match: toPersistedCardClashMatch(existingRow), deadline: existingDeadline };
     }
 
     const seatRows = db.prepare("SELECT seat_number, identity_id, ready FROM card_clash_seats WHERE room_id = ?").all(
@@ -1711,8 +1829,18 @@ export function startCardClashMatch(
     const matchId = Number(info.lastInsertRowid);
     db.prepare("UPDATE card_clash_rooms SET status = 'active' WHERE id = ?").run(roomId);
 
+    // Starting a match always creates its first actionable deadline too
+    // (docs §11/D4C-1 task spec) — seat 1's own first 10-second MAIN
+    // window, computed the same way every subsequent one is.
+    const initialDeadline = computeNextCardClashDeadline(initialState, nowMs);
+    upsertCardClashDeadlineInTx(matchId, initialState.version, initialDeadline);
+
     db.exec("COMMIT");
-    return { ok: true, match: { id: matchId, roomId, version: initialState.version, state: initialState } };
+    return {
+      ok: true,
+      match: { id: matchId, roomId, version: initialState.version, state: initialState },
+      deadline: initialDeadline ? { matchId, version: initialState.version, ...initialDeadline } : undefined,
+    };
   } catch (err) {
     db.exec("ROLLBACK");
     throw err;
@@ -1720,7 +1848,18 @@ export function startCardClashMatch(
 }
 
 export type ApplyCardClashTransitionResult =
-  | { readonly ok: true; readonly duplicate: boolean; readonly match: PersistedCardClashMatch }
+  | { readonly ok: true; readonly duplicate: true; readonly match: PersistedCardClashMatch }
+  | {
+      readonly ok: true;
+      readonly duplicate: false;
+      readonly match: PersistedCardClashMatch;
+      // The deadline now in effect for the resulting state — already
+      // persisted atomically alongside it (D4C-1). null means no timer
+      // currently applies (terminal match, or an unresolved DISCARD block).
+      // Never present on a duplicate reply: nothing changed, so there is no
+      // "new" deadline to report.
+      readonly nextDeadline: CardClashDeadlineInfo | null;
+    }
   | {
       readonly ok: false;
       readonly reason: "match_not_found" | "stale_version" | "request_id_conflict" | "transition_rejected";
@@ -1731,6 +1870,10 @@ export interface ApplyCardClashTransitionParams {
   readonly matchId: number;
   readonly requestId: string;
   readonly expectedVersion: number;
+  // Server-captured wall-clock time this transition is committing at — used
+  // only to compute the resulting deadline (never trusted from a client).
+  // Defaults to the real clock; tests may inject a fixed value.
+  readonly nowMs?: number;
   // A TRUSTED pure-engine transition — e.g. `(state) => playAttack(state,
   // seat, target, expectedVersion)` from card-clash/combat.ts. This module
   // never inspects or validates what kind of action is being taken; that is
@@ -1760,7 +1903,7 @@ export interface ApplyCardClashTransitionParams {
 // documented, deliberate limitation of this intentionally action-agnostic
 // interface, not an oversight.
 export function applyCardClashTransition(params: ApplyCardClashTransitionParams): ApplyCardClashTransitionResult {
-  const { matchId, requestId, expectedVersion, transition } = params;
+  const { matchId, requestId, expectedVersion, transition, nowMs = Date.now() } = params;
 
   db.exec("BEGIN IMMEDIATE");
   try {
@@ -1806,8 +1949,109 @@ export function applyCardClashTransition(params: ApplyCardClashTransitionParams)
       db.prepare("UPDATE card_clash_rooms SET status = 'complete' WHERE id = ?").run(row.room_id);
     }
 
+    // Deadline and match state commit atomically, in the same transaction —
+    // a successful gameplay transition always either persists the next
+    // applicable deadline or explicitly records that none applies right now
+    // (D4C-1 task spec §4).
+    const nextDeadline = computeNextCardClashDeadline(result.state, nowMs);
+    upsertCardClashDeadlineInTx(matchId, result.state.version, nextDeadline);
+
     db.exec("COMMIT");
-    return { ok: true, duplicate: false, match: { id: matchId, roomId: row.room_id, version: result.state.version, state: result.state } };
+    return {
+      ok: true,
+      duplicate: false,
+      match: { id: matchId, roomId: row.room_id, version: result.state.version, state: result.state },
+      nextDeadline,
+    };
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+export interface ProcessCardClashTimeoutResult {
+  // True only if the pure engine's own MatchState actually changed (an
+  // end-turn or a decline really applied). False for every no-op: match not
+  // found, the persisted deadline no longer matches `expectedVersion` (it
+  // was superseded by a real action or an earlier timeout — docs §11 "an
+  // expired action and a valid action... must never both succeed"), the
+  // deadline isn't actually due yet as of `nowMs`, or the one legal timeout
+  // transition for this phase was itself a no-op (the DISCARD-block case).
+  // Never broadcast a `changed: false` result as if something happened.
+  readonly applied: boolean;
+  readonly match: PersistedCardClashMatch | undefined;
+  // Whatever the database now says is current for this match — present
+  // even when `applied` is false, so a caller (the scheduler) can always
+  // re-arm its real timer against the authoritative row rather than
+  // guessing.
+  readonly nextDeadline: CardClashDeadlineInfo | null;
+}
+
+// The one entry point that ever applies an AUTOMATIC timeout transition —
+// never a client-authorized action (docs §9 "do not expose a client
+// endpoint that allows players to force another player's timeout"). Shares
+// the exact same re-read-inside-the-transaction/version-check/atomic-commit
+// discipline as applyCardClashTransition above, but keyed on "is the
+// persisted deadline for this exact version still due as of `nowMs`"
+// instead of a client requestId — `expectedVersion` here is whatever
+// version the deadline was scheduled against (captured by the caller at
+// schedule time), so an obsolete or duplicate callback for a version that
+// has since moved on is guaranteed to find a mismatch and do nothing.
+export function processCardClashTimeout(matchId: number, expectedVersion: number, nowMs: number): ProcessCardClashTimeoutResult {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const row = getCardClashMatchRowById(matchId);
+    if (!row) {
+      db.exec("ROLLBACK");
+      return { applied: false, match: undefined, nextDeadline: null };
+    }
+
+    const deadlineRow = getCardClashDeadlineRow(matchId);
+    const currentDeadline = toPersistedCardClashDeadline(deadlineRow);
+    const isDue =
+      currentDeadline !== undefined &&
+      currentDeadline.version === row.version &&
+      currentDeadline.version === expectedVersion &&
+      currentDeadline.expiresAt <= nowMs;
+
+    if (!isDue) {
+      db.exec("ROLLBACK"); // read-only path: stale, not-yet-due, or already superseded
+      return {
+        applied: false,
+        match: toPersistedCardClashMatch(row),
+        nextDeadline: currentDeadline ? { responderSeat: currentDeadline.responderSeat, expiresAt: currentDeadline.expiresAt } : null,
+      };
+    }
+
+    const currentState = deserializeCardClashMatchState(row.state_json);
+    const outcome = applyCardClashTimeoutTransition(currentState, currentDeadline!.responderSeat);
+
+    let finalState = currentState;
+    if (outcome.changed) {
+      finalState = outcome.state;
+      db.prepare(
+        `UPDATE card_clash_matches SET version = ?, state_json = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE id = ? AND version = ?`,
+      ).run(finalState.version, serializeCardClashMatchState(finalState), matchId, row.version);
+
+      if (finalState.matchResult.status === "complete") {
+        db.prepare("UPDATE card_clash_rooms SET status = 'complete' WHERE id = ?").run(row.room_id);
+      }
+    }
+
+    // Always re-persist the deadline row, even when the transition was a
+    // no-op: an unresolved DISCARD block must flip to inactive so this same
+    // obsolete callback (and the scheduler's own next wake-up) stops seeing
+    // it as due forever — see computeNextCardClashDeadline.
+    const nextDeadline = computeNextCardClashDeadline(finalState, nowMs);
+    upsertCardClashDeadlineInTx(matchId, finalState.version, nextDeadline);
+
+    db.exec("COMMIT");
+    return {
+      applied: outcome.changed,
+      match: { id: matchId, roomId: row.room_id, version: finalState.version, state: finalState },
+      nextDeadline,
+    };
   } catch (err) {
     db.exec("ROLLBACK");
     throw err;

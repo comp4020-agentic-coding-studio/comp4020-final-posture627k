@@ -35,6 +35,7 @@ import {
   applyCardClashTransition,
   CARD_CLASH_SEAT_COUNT,
   createCardClashRoom,
+  getCardClashDeadline,
   getCardClashMatchForRoom,
   getCardClashRoomByCode,
   getCardClashSeatForIdentity,
@@ -42,11 +43,17 @@ import {
   joinCardClashRoom,
   setCardClashSeatReady,
   startCardClashMatch,
+  type PersistedCardClashDeadline,
   type PersistedCardClashMatch,
 } from "./db.ts";
 import type { GameMode as CardClashMode, Seat as CardClashSeatNumber } from "./card-clash/types.ts";
 import { buildCardClashTransition, parseCardClashActionEnvelope } from "./card-clash/action-http.ts";
 import { publishCardClashRoomEvent, subscribeToCardClashRoom } from "./card-clash/realtime.ts";
+import {
+  reconcileAllCardClashMatchesOnStartup,
+  reconcileCardClashMatchIfOverdue,
+  rescheduleCardClashTimer,
+} from "./card-clash/scheduler.ts";
 
 // Co-located with this file so it resolves the same way locally and in the
 // Docker image, regardless of the process's working directory.
@@ -1161,8 +1168,15 @@ async function readJsonBody(c: Context): Promise<unknown> {
 // draw pile (only its remaining count). `pending`/`matchResult`/`publicLog`
 // are safe to include for every viewer as-is: by construction (card-clash/
 // combat.ts, group-effects.ts, effects.ts) they never carry hidden card
-// identities or deck order.
-function projectCardClashMatchForViewer(match: PersistedCardClashMatch, viewerSeat: CardClashSeatNumber | undefined) {
+// identities or deck order. `deadline` (D4C-1) is likewise safe for every
+// viewer: only an absolute timestamp and a seat number, already implied by
+// the public `pending`/`activeSeat` fields above — never private hand or
+// draw-pile contents, and never the internal scheduler/timer objects.
+function projectCardClashMatchForViewer(
+  match: PersistedCardClashMatch,
+  viewerSeat: CardClashSeatNumber | undefined,
+  deadline: PersistedCardClashDeadline | undefined,
+) {
   const state = match.state;
   const players = [...state.players.entries()]
     .sort(([a], [b]) => a - b)
@@ -1190,6 +1204,7 @@ function projectCardClashMatchForViewer(match: PersistedCardClashMatch, viewerSe
     publicLog: state.publicLog,
     players,
     viewerSeat: viewerSeat ?? null,
+    deadline: deadline ? { expiresAt: deadline.expiresAt, responderSeat: deadline.responderSeat } : null,
   };
 }
 
@@ -1292,10 +1307,22 @@ app.post("/api/card-clash/rooms/:code/start", (c) => {
     return c.json({ error: result.reason }, status);
   }
 
-  if (wasWaiting) publishCardClashRoomEvent(room.id, "match");
+  if (wasWaiting) {
+    publishCardClashRoomEvent(room.id, "match");
+  }
+  // Starting a match always creates its first actionable deadline (D4C-1) —
+  // arm the real wake-up timer for it regardless of which branch returned
+  // (a genuine start or an idempotent repeat), since either way this is a
+  // live request touching this match right now.
+  rescheduleCardClashTimer(
+    result.match.id,
+    room.id,
+    result.deadline ? { version: result.deadline.version, expiresAt: result.deadline.expiresAt, responderSeat: result.deadline.responderSeat } : null,
+    Date.now(),
+  );
 
   const viewerSeat = getCardClashSeatForIdentity(room.id, identityId)?.seatNumber as CardClashSeatNumber | undefined;
-  return c.json(projectCardClashMatchForViewer(result.match, viewerSeat));
+  return c.json(projectCardClashMatchForViewer(result.match, viewerSeat, result.deadline));
 });
 
 app.get("/api/card-clash/rooms/:code/state", (c) => {
@@ -1313,7 +1340,16 @@ app.get("/api/card-clash/rooms/:code/state", (c) => {
   const match = getCardClashMatchForRoom(room.id);
   if (!match) return c.json({ error: "match_not_found" }, 404);
 
-  return c.json(projectCardClashMatchForViewer(match, seat.seatNumber as CardClashSeatNumber));
+  // Reconcile any deadline that is already overdue before returning a
+  // snapshot (D4C-1 docs §11/§6): a client fetching state is itself an
+  // "authorized access" point, and the real wall-clock timer may not have
+  // fired yet (e.g. the Fly machine had been stopped). This never sets a
+  // NEW deadline just because someone fetched — it only ever applies a
+  // deadline that was already genuinely due.
+  const reconciled = reconcileCardClashMatchIfOverdue(match.id, room.id, Date.now());
+  const deadline = getCardClashDeadline(match.id);
+
+  return c.json(projectCardClashMatchForViewer(reconciled.match, seat.seatNumber as CardClashSeatNumber, deadline));
 });
 
 // Invalidation-only SSE (D4B): never a game snapshot, just "something in
@@ -1447,8 +1483,18 @@ app.post("/api/card-clash/rooms/:code/actions", async (c) => {
   if (!envelope) return c.json({ error: "invalid_request" }, 400);
 
   const seatNumber = seat.seatNumber as CardClashSeatNumber;
-  const match = getCardClashMatchForRoom(room.id);
+  let match = getCardClashMatchForRoom(room.id);
   if (!match) return c.json({ error: "match_not_found" }, 404); // defensive; unreachable given room.status === "active"
+
+  // Reconcile any already-overdue deadline FIRST (D4C-1 docs §11 "an
+  // expired action and a valid action for the same phase must never both
+  // succeed"). If a timeout genuinely applies, this advances the match past
+  // it — the client's own action below is then checked against the NEW
+  // version, so an action that arrived too late is correctly rejected by
+  // the existing stale_version check rather than racing the real timer.
+  const reconciled = reconcileCardClashMatchIfOverdue(match.id, room.id, Date.now());
+  match = reconciled.match;
+
   if (match.state.players.get(seatNumber)?.eliminated) {
     return c.json({ error: "eliminated" }, 403);
   }
@@ -1478,11 +1524,20 @@ app.post("/api/card-clash/rooms/:code/actions", async (c) => {
   // about — an idempotent replay of an already-applied request must not
   // publish again (reuses the existing `duplicate` flag already returned
   // by applyCardClashTransition — no new storage-layer work needed).
-  if (!result.duplicate) publishCardClashRoomEvent(room.id, "match");
+  if (!result.duplicate) {
+    publishCardClashRoomEvent(room.id, "match");
+    rescheduleCardClashTimer(
+      result.match.id,
+      room.id,
+      result.nextDeadline ? { version: result.match.version, ...result.nextDeadline } : null,
+      Date.now(),
+    );
+  }
+  const deadline = getCardClashDeadline(result.match.id);
 
   return c.json({
     duplicate: result.duplicate,
-    ...projectCardClashMatchForViewer(result.match, seatNumber),
+    ...projectCardClashMatchForViewer(result.match, seatNumber, deadline),
   });
 });
 
@@ -1506,7 +1561,11 @@ const port = Number(process.env.PORT) || 8080;
 // Only bind a real port when this file is actually run as the application
 // entrypoint (`node server.ts`, including under Docker/Fly) — not merely
 // imported for its `app` export, which would otherwise try to bind the same
-// port a real running instance might already hold.
+// port a real running instance might already hold. Reconciling and re-
+// arming every live Card Clash deadline is gated the same way: a plain
+// import (every spec file) must never start background real-wall-clock
+// timers, only an actual running server process.
 if (import.meta.filename === process.argv[1]) {
+  reconcileAllCardClashMatchesOnStartup();
   serve({ fetch: app.fetch, port, hostname: "0.0.0.0" });
 }

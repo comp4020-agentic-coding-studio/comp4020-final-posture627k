@@ -64,9 +64,10 @@ it("1. the v5 -> v6 migration succeeds: hand/hand-player/action tables exist", (
     .all() as { name: string }[];
   expect(tables.map((t) => t.name).sort()).toEqual(["poker_actions", "poker_hand_players", "poker_hands"]);
   const version = raw.prepare("PRAGMA user_version").get() as { user_version: number };
-  // 7, not 6: schema version 7 (card-clash/ rooms/matches, D3A) is additive
-  // on top of poker's own v6 — poker's tables/behavior above are unchanged.
-  expect(version.user_version).toBe(7);
+  // 8, not 6: schema versions 7 (card-clash/ rooms/matches, D3A) and 8
+  // (card-clash/ deadlines, D4C-1) are both additive on top of poker's own
+  // v6 — poker's tables/behavior above are unchanged.
+  expect(version.user_version).toBe(8);
   raw.close();
 });
 
@@ -123,10 +124,10 @@ it("3. the old migration chain remains valid: a pure v1 database migrates all th
   const fresh = await reopen();
   const rawAfter = openRaw();
   const version = rawAfter.prepare("PRAGMA user_version").get() as { user_version: number };
-  // 7, not 6: the chain now continues on through the additive v7 (Card
-  // Clash) migration too — the v1->v6 portion being exercised here is
-  // otherwise unchanged.
-  expect(version.user_version).toBe(7);
+  // 8, not 6: the chain now continues on through the additive v7 (Card
+  // Clash rooms/matches) and v8 (Card Clash deadlines) migrations too — the
+  // v1->v6 portion being exercised here is otherwise unchanged.
+  expect(version.user_version).toBe(8);
   const pokerTables = rawAfter
     .prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'poker_hands'")
     .get() as { n: number };
