@@ -69,8 +69,11 @@ function nextLivingSeat(state: MatchState, from: Seat): Seat {
 // freshly shuffled 64-card deck (never recycling the discard pile) as many
 // times as needed to satisfy the request in one atomic step — see
 // docs/card-clash-rules.md §6's "a multi-card draw crossing the deck
-// boundary must complete correctly".
-function drawInternal(state: MatchState, seat: Seat, count: number, randomSource?: RandomInt): MatchState {
+// boundary must complete correctly". Exported (unchanged) so D2's Insight
+// effect (card-clash/effects.ts) reuses this exact replenishment logic
+// rather than duplicating it — it does not touch version/activeSeat/
+// pending, which the caller is responsible for.
+export function drawInternal(state: MatchState, seat: Seat, count: number, randomSource?: RandomInt): MatchState {
   const drawPile = [...state.drawPile];
   let deckGeneration = state.deckGeneration;
   const drawn: Card[] = [];

@@ -3,7 +3,7 @@
 // consume these shapes. See docs/card-clash-rules.md §1 for the frozen
 // mode/seat/team/HP table this module must stay faithful to.
 
-import type { Card } from "./cards.ts";
+import type { Card, CardType } from "./cards.ts";
 
 export type GameMode = "1v1" | "1v2" | "2v2";
 export type Seat = 1 | 2 | 3 | 4;
@@ -62,7 +62,14 @@ export type PublicEvent =
   | { readonly type: "heal_played"; readonly actor: Seat; readonly target: Seat }
   | { readonly type: "rescue_declined"; readonly actor: Seat }
   | { readonly type: "eliminated"; readonly seat: Seat }
-  | { readonly type: "match_complete"; readonly winningTeam: Team };
+  | { readonly type: "match_complete"; readonly winningTeam: Team }
+  // D2A: Seize/Disarm never reveal which card moved — only Disarm's own
+  // rule (docs/card-clash-rules.md §3 "Disarm") makes the discarded card's
+  // type public, as its own separate `disarm_card_revealed` event.
+  | { readonly type: "seize_played"; readonly actor: Seat; readonly target: Seat }
+  | { readonly type: "disarm_played"; readonly actor: Seat; readonly target: Seat }
+  | { readonly type: "disarm_card_revealed"; readonly target: Seat; readonly cardType: CardType }
+  | { readonly type: "insight_played"; readonly actor: Seat; readonly cardsDrawn: number };
 
 export interface MatchState {
   readonly mode: GameMode;
