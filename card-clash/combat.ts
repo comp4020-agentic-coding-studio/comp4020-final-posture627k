@@ -15,8 +15,12 @@ import type { MatchState, PublicEvent, Seat, Team } from "./types.ts";
 // nearest living counterclockwise neighbor first, continuing
 // counterclockwise through every other living seat, with the dying seat
 // itself always last (docs/card-clash-rules.md §4). "Counterclockwise" is
-// simply the reverse of SEATS_BY_MODE's fixed clockwise order.
-function computeRescueOrder(state: MatchState, dyingSeat: Seat): Seat[] {
+// simply the reverse of SEATS_BY_MODE's fixed clockwise order. Exported so
+// D2B's group effects (card-clash/group-effects.ts) reuse this exact
+// rescue-order logic rather than duplicating it — a dying rescue is
+// identical whether it was triggered by a single Attack or a declined
+// group response.
+export function computeRescueOrder(state: MatchState, dyingSeat: Seat): Seat[] {
   const order = SEATS_BY_MODE[state.mode];
   const n = order.length;
   const dyingIndex = order.indexOf(dyingSeat);
@@ -257,9 +261,21 @@ export function respondToRescue(
 ): RespondToRescueResult {
   if (state.matchResult.status === "complete") return { ok: false, reason: "match_complete" };
   if (state.pending?.kind !== "dying_rescue") return { ok: false, reason: "no_pending_rescue" };
-  const { dyingSeat, queue, resumeActiveSeat } = state.pending;
+  const { dyingSeat, queue, resumeActiveSeat, resumingGroupContext } = state.pending;
   if (seat !== queue[0]) return { ok: false, reason: "not_the_responder" };
   if (expectedVersion !== state.version) return { ok: false, reason: "stale_version" };
+
+  // Where control goes once this rescue concludes successfully (or, for
+  // the elimination path below, once the match is confirmed still
+  // ongoing): back into the suspended group queue's next target (D2B) if
+  // one is pending, otherwise straight to resumeActiveSeat's MAIN phase —
+  // the original, unchanged D1B behavior.
+  function resumeAfterRescue(base: MatchState): MatchState {
+    if (resumingGroupContext && resumingGroupContext.queue.length > 0) {
+      return { ...base, pending: { kind: "group_response", context: resumingGroupContext } };
+    }
+    return { ...base, pending: undefined, activeSeat: resumeActiveSeat };
+  }
 
   if (action.type === "heal") {
     const responder = state.players.get(seat)!;
@@ -277,15 +293,13 @@ export function respondToRescue(
 
     return {
       ok: true,
-      state: {
+      state: resumeAfterRescue({
         ...state,
         players,
         discardPile: [...state.discardPile, healCard],
-        pending: undefined,
-        activeSeat: resumeActiveSeat,
         publicLog: [...state.publicLog, { type: "heal_played", actor: seat, target: dyingSeat }],
         version: state.version + 1,
-      },
+      }),
     };
   }
 
@@ -299,13 +313,21 @@ export function respondToRescue(
   if (remaining.length > 0) {
     return {
       ok: true,
-      state: { ...afterDecline, pending: { kind: "dying_rescue", dyingSeat, queue: remaining, resumeActiveSeat } },
+      state: {
+        ...afterDecline,
+        pending: { kind: "dying_rescue", dyingSeat, queue: remaining, resumeActiveSeat, resumingGroupContext },
+      },
     };
   }
 
   // The dying seat's own last chance (always the final queue entry) was
   // declined: nobody rescued them.
   const eliminated = eliminateSeat({ ...afterDecline, pending: undefined }, dyingSeat);
-  const matchStillOngoing = eliminated.matchResult.status === "ongoing";
-  return { ok: true, state: matchStillOngoing ? { ...eliminated, activeSeat: resumeActiveSeat } : eliminated };
+  if (eliminated.matchResult.status === "complete") {
+    // Match over: stop immediately — no further group requests, no MAIN
+    // phase resumption (docs §5: "If elimination finishes the match, stop
+    // the group effect immediately").
+    return { ok: true, state: eliminated };
+  }
+  return { ok: true, state: resumeAfterRescue(eliminated) };
 }

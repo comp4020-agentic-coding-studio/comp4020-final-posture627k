@@ -26,6 +26,17 @@ export interface PlayerState {
   readonly hasTakenFirstTurn: boolean;
 }
 
+// A group effect (War Cry/Arrow Volley, D2B) awaiting responses from every
+// other living seat, clockwise from the actor (docs §2/§3 "group response
+// ordering") — never including the actor themself. `queue[0]` is whoever
+// must respond right now; the rest follow in clockwise order.
+export interface GroupResponseContext {
+  readonly actor: Seat;
+  readonly cardType: "war_cry" | "arrow_volley";
+  readonly requiredResponseType: "attack" | "dodge";
+  readonly queue: readonly Seat[];
+}
+
 // A single-target Attack awaiting the target's Dodge-or-decline response
 // (docs/card-clash-rules.md §2 D1B scope), or a dying-rescue sequence in
 // progress for one dying seat (§4). While either is set, MAIN-phase actions
@@ -42,9 +53,18 @@ export type PendingResponse =
       readonly queue: readonly Seat[];
       // Whose MAIN-phase turn resumes once this rescue concludes (success
       // or elimination), provided the match isn't over — always the seat
-      // whose Attack originally caused this rescue.
+      // whose Attack (or, D2B, group effect) originally caused this rescue.
       readonly resumeActiveSeat: Seat;
-    };
+      // D2B only: set when this rescue was triggered by a declined group
+      // response (War Cry/Arrow Volley) rather than a single Attack. The
+      // queue here already has the now-dying seat removed — once this
+      // rescue concludes, group resolution continues at this context's own
+      // next target instead of jumping straight to resumeActiveSeat's MAIN
+      // phase. Undefined for every D1B single-Attack rescue, whose
+      // resolution is completely unchanged.
+      readonly resumingGroupContext?: GroupResponseContext;
+    }
+  | { readonly kind: "group_response"; readonly context: GroupResponseContext };
 
 export type MatchResult =
   | { readonly status: "ongoing" }
@@ -69,7 +89,11 @@ export type PublicEvent =
   | { readonly type: "seize_played"; readonly actor: Seat; readonly target: Seat }
   | { readonly type: "disarm_played"; readonly actor: Seat; readonly target: Seat }
   | { readonly type: "disarm_card_revealed"; readonly target: Seat; readonly cardType: CardType }
-  | { readonly type: "insight_played"; readonly actor: Seat; readonly cardsDrawn: number };
+  | { readonly type: "insight_played"; readonly actor: Seat; readonly cardsDrawn: number }
+  // D2B: War Cry/Arrow Volley and their group responses.
+  | { readonly type: "group_card_played"; readonly actor: Seat; readonly cardType: "war_cry" | "arrow_volley" }
+  | { readonly type: "group_response_played"; readonly actor: Seat; readonly responseType: "attack" | "dodge" }
+  | { readonly type: "group_response_declined"; readonly actor: Seat };
 
 export interface MatchState {
   readonly mode: GameMode;
