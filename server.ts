@@ -48,6 +48,7 @@ import {
 } from "./db.ts";
 import type { GameMode as CardClashMode, Seat as CardClashSeatNumber } from "./card-clash/types.ts";
 import { buildCardClashTransition, parseCardClashActionEnvelope } from "./card-clash/action-http.ts";
+import { renderCardClashPage } from "./card-clash/ui.ts";
 import { publishCardClashRoomEvent, subscribeToCardClashRoom } from "./card-clash/realtime.ts";
 import {
   reconcileAllCardClashMatchesOnStartup,
@@ -1200,6 +1201,8 @@ function projectCardClashMatchForViewer(
     drawPileCount: state.drawPile.length,
     discardPile: state.discardPile,
     pending: state.pending,
+    // Public-safe phase marker so the UI never has to infer DISCARD from hand size.
+    turnPhase: state.turnPhase ?? "main",
     matchResult: state.matchResult,
     publicLog: state.publicLog,
     players,
@@ -1207,6 +1210,8 @@ function projectCardClashMatchForViewer(
     deadline: deadline ? { expiresAt: deadline.expiresAt, responderSeat: deadline.responderSeat } : null,
   };
 }
+
+app.get("/card-clash", (c) => c.html(renderCardClashPage()));
 
 app.post("/api/card-clash/rooms", async (c) => {
   const identityId = c.get("identityId");
