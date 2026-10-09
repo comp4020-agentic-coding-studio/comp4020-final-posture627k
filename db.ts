@@ -16,6 +16,9 @@ import {
 } from "./poker/betting.ts";
 import { nextStreet as computeNextStreet, shouldAdvanceStreet, isReadyForSettlement } from "./poker/hand-lifecycle.ts";
 import { settleHand, type SettlementPlan, type SettlementRejectionReason } from "./poker/settlement.ts";
+import type { RandomInt } from "./card-clash/deck.ts";
+import { initializeMatch as initializeCardClashMatch } from "./card-clash/engine.ts";
+import type { GameMode as CardClashMode, MatchState as CardClashMatchState } from "./card-clash/types.ts";
 
 // Schema version for this file, tracked via SQLite's own PRAGMA user_version.
 // A fresh/empty data directory starts at 0; this module brings it to
@@ -32,7 +35,11 @@ import { settleHand, type SettlementPlan, type SettlementRejectionReason } from 
 // never silently reinterpreted or destroyed. Version 5 adds the poker
 // domain (tables/seats) as a new, independent set of tables. Version 6
 // adds persistent hand state (hands/hand players/actions) on top of it.
-const SCHEMA_VERSION = 6;
+// Version 7 adds the Card Clash domain (rooms/seats/matches/match actions)
+// as a further new, independent set of tables — poker's own tables and data
+// are untouched; no poker record is ever copied or reinterpreted as a Card
+// Clash one.
+const SCHEMA_VERSION = 7;
 
 // The fixed Crit 8 world layout. Defined here, ahead of the schema/migration
 // code below, because the v2 -> v3 migration can call generateWorld() (to
@@ -372,6 +379,79 @@ if (currentVersion < 6) {
       created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
       UNIQUE (hand_id, request_id),
       UNIQUE (hand_id, resulting_version)
+    );
+  `);
+}
+
+// Migration: schema version 6 -> 7 (Card Clash domain: rooms, seat
+// membership/readiness, persistent match state, applied-action ledger).
+// Additive only; v1-v6 (strategy-war and poker) are completely untouched —
+// Card Clash is a wholly independent set of tables, exactly like poker was
+// when it was added in v5/v6. No poker row is ever copied or reinterpreted
+// here.
+//
+// Design decisions:
+//
+// - A room is created with exactly one immutable `mode` (docs/card-clash-
+//   rules.md §1) — card_clash_seats.seat_number is only bounded 1-4 at the
+//   SQL level (the broadest mode allows 4); which seats are actually valid
+//   for a given room is enforced in application code against that room's
+//   own mode, the same division of responsibility poker_seats already uses
+//   (SQL bounds the type, the app enforces the mode-specific count).
+// - `card_clash_matches.state_json` holds the ENTIRE serialized
+//   card-clash/types.ts MatchState — mode, every player's hp/hand/team,
+//   draw/discard piles, deck generation, pending response/rescue/group
+//   context, public event log, and match result — as one JSON blob,
+//   written in a single UPDATE per transition. This is the same choice
+//   poker_hands.betting_json already made for HeadsUpBettingState: public
+//   events and game state can never commit independently and drift apart,
+//   because they are literally one write. A room has at most one match,
+//   ever, in this slice (UNIQUE(room_id)) — no rematch/leave/reseat exists
+//   yet (explicitly deferred).
+// - Idempotency mirrors poker_actions exactly: `UNIQUE (match_id,
+//   request_id)` is the real constraint-backed guarantee, not just an
+//   in-memory pre-check, and `UNIQUE (match_id, resulting_version)` stops
+//   two different requests from ever being recorded as producing the same
+//   resulting version.
+if (currentVersion < 7) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS card_clash_rooms (
+      id INTEGER PRIMARY KEY,
+      code TEXT NOT NULL UNIQUE,
+      mode TEXT NOT NULL CHECK (mode IN ('1v1', '1v2', '2v2')),
+      status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'active', 'complete')),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS card_clash_seats (
+      id INTEGER PRIMARY KEY,
+      room_id INTEGER NOT NULL REFERENCES card_clash_rooms(id),
+      identity_id INTEGER NOT NULL REFERENCES identities(id),
+      seat_number INTEGER NOT NULL CHECK (seat_number BETWEEN 1 AND 4),
+      ready INTEGER NOT NULL DEFAULT 0 CHECK (ready IN (0, 1)),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      UNIQUE (room_id, seat_number),
+      UNIQUE (room_id, identity_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS card_clash_matches (
+      id INTEGER PRIMARY KEY,
+      room_id INTEGER NOT NULL UNIQUE REFERENCES card_clash_rooms(id),
+      version INTEGER NOT NULL CHECK (version > 0),
+      state_json TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      updated_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
+    );
+
+    CREATE TABLE IF NOT EXISTS card_clash_match_actions (
+      id INTEGER PRIMARY KEY,
+      match_id INTEGER NOT NULL REFERENCES card_clash_matches(id),
+      request_id TEXT NOT NULL,
+      expected_version INTEGER NOT NULL CHECK (expected_version > 0),
+      resulting_version INTEGER NOT NULL CHECK (resulting_version > 0),
+      created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+      UNIQUE (match_id, request_id),
+      UNIQUE (match_id, resulting_version)
     );
   `);
 }
@@ -1301,4 +1381,433 @@ export function getShowdownHoleCards(handId: number): Partial<Record<PokerSeatNu
     }
   }
   return revealed;
+}
+
+// --- Card Clash domain: rooms, seats, and persistent match state (D3A) ------
+// Independent of both the strategy-war and poker tables above: a Card Clash
+// room is not a renamed poker table, and this module never implements any
+// Card Clash RULE itself — rules live entirely in card-clash/engine.ts,
+// card-clash/combat.ts, card-clash/effects.ts, and card-clash/group-
+// effects.ts. This section only serializes/deserializes that pure engine's
+// own MatchState and enforces the transactional/version/idempotency
+// contract around it — exactly poker's own division of responsibility
+// between poker/*.ts and this file.
+
+const CARD_CLASH_SEAT_COUNT: Readonly<Record<CardClashMode, number>> = { "1v1": 2, "1v2": 3, "2v2": 4 };
+
+// A separate code generator from poker's (not shared code, not a shared
+// uniqueness domain) — a Card Clash room is not a renamed poker table, and
+// nothing here depends on poker's own generateTableCode.
+const CARD_CLASH_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
+const CARD_CLASH_CODE_LENGTH = 8;
+
+function generateCardClashRoomCode(): string {
+  const bytes = randomBytes(CARD_CLASH_CODE_LENGTH);
+  let code = "";
+  for (let i = 0; i < CARD_CLASH_CODE_LENGTH; i++) {
+    code += CARD_CLASH_CODE_ALPHABET[bytes[i] % CARD_CLASH_CODE_ALPHABET.length];
+  }
+  return code;
+}
+
+export interface CardClashRoom {
+  readonly id: number;
+  readonly code: string;
+  readonly mode: CardClashMode;
+  readonly status: "waiting" | "active" | "complete";
+}
+
+function toCardClashRoom(row: { id: number; code: string; mode: string; status: string }): CardClashRoom {
+  return { id: row.id, code: row.code, mode: row.mode as CardClashMode, status: row.status as CardClashRoom["status"] };
+}
+
+// Creates the room and seats the host at seat 1 atomically — the host
+// permanently occupies seat 1 for the room's lifetime (docs/card-clash-
+// rules.md §1: "The host occupies Seat 1 and acts first"). Mode is
+// immutable from this point on: nothing in this module ever updates
+// card_clash_rooms.mode.
+export function createCardClashRoom(mode: CardClashMode, hostIdentityId: number): CardClashRoom {
+  const MAX_ATTEMPTS = 5;
+  for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+    const code = generateCardClashRoomCode();
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const info = db.prepare("INSERT INTO card_clash_rooms (code, mode) VALUES (?, ?)").run(code, mode);
+      const roomId = Number(info.lastInsertRowid);
+      db.prepare("INSERT INTO card_clash_seats (room_id, identity_id, seat_number, ready) VALUES (?, ?, 1, 0)").run(
+        roomId,
+        hostIdentityId,
+      );
+      db.exec("COMMIT");
+      return { id: roomId, code, mode, status: "waiting" };
+    } catch (err) {
+      db.exec("ROLLBACK");
+      if (isUniqueConstraintViolation(err)) continue;
+      throw err;
+    }
+  }
+  throw new Error("failed to generate a unique card clash room code");
+}
+
+export function getCardClashRoomByCode(code: string): CardClashRoom | undefined {
+  const row = db.prepare("SELECT id, code, mode, status FROM card_clash_rooms WHERE code = ?").get(code) as
+    | { id: number; code: string; mode: string; status: string }
+    | undefined;
+  return row ? toCardClashRoom(row) : undefined;
+}
+
+export interface CardClashSeat {
+  readonly roomId: number;
+  readonly identityId: number;
+  readonly seatNumber: number;
+  readonly ready: boolean;
+}
+
+function toCardClashSeat(row: { room_id: number; identity_id: number; seat_number: number; ready: number }): CardClashSeat {
+  return { roomId: row.room_id, identityId: row.identity_id, seatNumber: row.seat_number, ready: row.ready === 1 };
+}
+
+// Room/seat metadata only — deliberately never joined with match state
+// (getCardClashMatchForRoom below is a separate call): private hands and
+// deck order must never be automatically bundled into public room data.
+export function getCardClashSeatsForRoom(roomId: number): CardClashSeat[] {
+  const rows = db
+    .prepare(
+      `SELECT room_id AS roomId, identity_id AS identityId, seat_number AS seatNumber, ready
+       FROM card_clash_seats WHERE room_id = ? ORDER BY seat_number`,
+    )
+    .all(roomId) as unknown as { roomId: number; identityId: number; seatNumber: number; ready: number }[];
+  return rows.map((r) => ({ roomId: r.roomId, identityId: r.identityId, seatNumber: r.seatNumber, ready: r.ready === 1 }));
+}
+
+export function getCardClashSeatForIdentity(roomId: number, identityId: number): CardClashSeat | undefined {
+  const row = db
+    .prepare(
+      `SELECT room_id, identity_id, seat_number, ready
+       FROM card_clash_seats WHERE room_id = ? AND identity_id = ?`,
+    )
+    .get(roomId, identityId) as { room_id: number; identity_id: number; seat_number: number; ready: number } | undefined;
+  return row ? toCardClashSeat(row) : undefined;
+}
+
+export type JoinCardClashRoomResult =
+  | { readonly ok: true; readonly alreadyJoined: boolean; readonly seatNumber: number }
+  | { readonly ok: false; readonly reason: "room_not_found" | "room_already_started" | "room_full" };
+
+// Joining an already-claimed seat with the SAME identity is a reconnect
+// (idempotent, not a second join — docs §3); concurrency safety for a
+// genuinely new seat comes from UNIQUE(room_id, seat_number) and
+// UNIQUE(room_id, identity_id), the same pattern poker's joinPokerTable
+// already uses — two concurrent joins can both pass the pre-check, but
+// only one INSERT can win, and the loser's constraint violation is what
+// this function treats as "full".
+export function joinCardClashRoom(roomId: number, identityId: number): JoinCardClashRoomResult {
+  const existing = getCardClashSeatForIdentity(roomId, identityId);
+  if (existing) {
+    return { ok: true, alreadyJoined: true, seatNumber: existing.seatNumber };
+  }
+
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const room = db.prepare("SELECT mode, status FROM card_clash_rooms WHERE id = ?").get(roomId) as
+      | { mode: string; status: string }
+      | undefined;
+    if (!room) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "room_not_found" };
+    }
+    if (room.status !== "waiting") {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "room_already_started" };
+    }
+
+    const seatRows = db.prepare("SELECT seat_number FROM card_clash_seats WHERE room_id = ?").all(roomId) as {
+      seat_number: number;
+    }[];
+    const takenSeats = new Set(seatRows.map((r) => r.seat_number));
+    const requiredSeats = CARD_CLASH_SEAT_COUNT[room.mode as CardClashMode];
+
+    let nextSeat: number | undefined;
+    for (let s = 1; s <= requiredSeats; s++) {
+      if (!takenSeats.has(s)) {
+        nextSeat = s;
+        break;
+      }
+    }
+    if (nextSeat === undefined) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "room_full" };
+    }
+
+    db.prepare("INSERT INTO card_clash_seats (room_id, identity_id, seat_number, ready) VALUES (?, ?, ?, 0)").run(
+      roomId,
+      identityId,
+      nextSeat,
+    );
+    db.exec("COMMIT");
+    return { ok: true, alreadyJoined: false, seatNumber: nextSeat };
+  } catch (err) {
+    db.exec("ROLLBACK");
+    if (isUniqueConstraintViolation(err)) {
+      return { ok: false, reason: "room_full" };
+    }
+    throw err;
+  }
+}
+
+export type SetCardClashReadyResult =
+  | { readonly ok: true }
+  | { readonly ok: false; readonly reason: "not_a_player" | "room_already_started" };
+
+// Every seated player, including the host, may freely toggle their own
+// readiness while the room is still waiting (docs §4) — there is no
+// separate "ready" concept once the match has started.
+export function setCardClashSeatReady(roomId: number, identityId: number, ready: boolean): SetCardClashReadyResult {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const room = db.prepare("SELECT status FROM card_clash_rooms WHERE id = ?").get(roomId) as
+      | { status: string }
+      | undefined;
+    if (!room || room.status !== "waiting") {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "room_already_started" };
+    }
+    const seat = db.prepare("SELECT id FROM card_clash_seats WHERE room_id = ? AND identity_id = ?").get(
+      roomId,
+      identityId,
+    ) as { id: number } | undefined;
+    if (!seat) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "not_a_player" };
+    }
+    db.prepare("UPDATE card_clash_seats SET ready = ? WHERE id = ?").run(ready ? 1 : 0, seat.id);
+    db.exec("COMMIT");
+    return { ok: true };
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+export interface PersistedCardClashMatch {
+  readonly id: number;
+  readonly roomId: number;
+  readonly version: number;
+  readonly state: CardClashMatchState;
+}
+
+interface CardClashMatchRow {
+  id: number;
+  room_id: number;
+  version: number;
+  state_json: string;
+}
+
+// MatchState.players is a Map, which JSON.stringify silently turns into
+// "{}" — serialized here as an ordered array of [seat, PlayerState] tuples
+// instead, so every field (including nested pending/rescue/group contexts,
+// the public event log, and each card's own stable id) round-trips through
+// JSON exactly, with no loss of card identity or order.
+function serializeCardClashMatchState(state: CardClashMatchState): string {
+  return JSON.stringify({ ...state, players: [...state.players.entries()] });
+}
+
+function deserializeCardClashMatchState(json: string): CardClashMatchState {
+  const raw = JSON.parse(json) as Omit<CardClashMatchState, "players"> & { players: readonly [number, unknown][] };
+  return { ...raw, players: new Map(raw.players) } as CardClashMatchState;
+}
+
+function toPersistedCardClashMatch(row: CardClashMatchRow): PersistedCardClashMatch {
+  return { id: row.id, roomId: row.room_id, version: row.version, state: deserializeCardClashMatchState(row.state_json) };
+}
+
+function getCardClashMatchRowById(matchId: number): CardClashMatchRow | undefined {
+  return db.prepare("SELECT id, room_id, version, state_json FROM card_clash_matches WHERE id = ?").get(matchId) as
+    | CardClashMatchRow
+    | undefined;
+}
+
+export function getCardClashMatchById(matchId: number): PersistedCardClashMatch | undefined {
+  const row = getCardClashMatchRowById(matchId);
+  return row ? toPersistedCardClashMatch(row) : undefined;
+}
+
+export function getCardClashMatchForRoom(roomId: number): PersistedCardClashMatch | undefined {
+  const row = db.prepare("SELECT id, room_id, version, state_json FROM card_clash_matches WHERE room_id = ?").get(
+    roomId,
+  ) as CardClashMatchRow | undefined;
+  return row ? toPersistedCardClashMatch(row) : undefined;
+}
+
+export type StartCardClashMatchResult =
+  | { readonly ok: true; readonly match: PersistedCardClashMatch }
+  | {
+      readonly ok: false;
+      readonly reason: "room_not_found" | "not_the_host" | "seats_not_full" | "not_all_ready";
+    };
+
+// Atomically validates and starts a room's match: every required seat
+// filled, every seated player ready, and only the host (always seat 1) may
+// trigger it (docs §4). Calls the existing pure initializeMatch exactly
+// once and persists its result — a repeated start attempt (room already
+// 'active'/'complete') is treated as an idempotent no-op that returns the
+// EXISTING match rather than erroring or generating a second hand/deck,
+// mirroring poker's own createPokerHand "hand_already_active" precedent.
+// `randomSource` exists only so this module's own tests can supply
+// deterministic shuffling — every real caller omits it.
+export function startCardClashMatch(
+  roomId: number,
+  hostIdentityId: number,
+  randomSource?: RandomInt,
+): StartCardClashMatchResult {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const room = db.prepare("SELECT mode, status FROM card_clash_rooms WHERE id = ?").get(roomId) as
+      | { mode: string; status: string }
+      | undefined;
+    if (!room) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "room_not_found" };
+    }
+
+    if (room.status !== "waiting") {
+      const existingRow = db
+        .prepare("SELECT id, room_id, version, state_json FROM card_clash_matches WHERE room_id = ?")
+        .get(roomId) as CardClashMatchRow | undefined;
+      db.exec("ROLLBACK"); // read-only path: nothing was written
+      if (!existingRow) {
+        throw new Error(`card clash room ${roomId} is marked started but has no persisted match`);
+      }
+      return { ok: true, match: toPersistedCardClashMatch(existingRow) };
+    }
+
+    const seatRows = db.prepare("SELECT seat_number, identity_id, ready FROM card_clash_seats WHERE room_id = ?").all(
+      roomId,
+    ) as { seat_number: number; identity_id: number; ready: number }[];
+
+    const requiredSeats = CARD_CLASH_SEAT_COUNT[room.mode as CardClashMode];
+    if (seatRows.length < requiredSeats) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "seats_not_full" };
+    }
+
+    const hostSeat = seatRows.find((s) => s.seat_number === 1);
+    if (!hostSeat || hostSeat.identity_id !== hostIdentityId) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "not_the_host" };
+    }
+
+    if (!seatRows.every((s) => s.ready === 1)) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "not_all_ready" };
+    }
+
+    const initialState = initializeCardClashMatch({ mode: room.mode as CardClashMode, randomSource });
+    const info = db
+      .prepare("INSERT INTO card_clash_matches (room_id, version, state_json) VALUES (?, ?, ?)")
+      .run(roomId, initialState.version, serializeCardClashMatchState(initialState));
+    const matchId = Number(info.lastInsertRowid);
+    db.prepare("UPDATE card_clash_rooms SET status = 'active' WHERE id = ?").run(roomId);
+
+    db.exec("COMMIT");
+    return { ok: true, match: { id: matchId, roomId, version: initialState.version, state: initialState } };
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
+export type ApplyCardClashTransitionResult =
+  | { readonly ok: true; readonly duplicate: boolean; readonly match: PersistedCardClashMatch }
+  | {
+      readonly ok: false;
+      readonly reason: "match_not_found" | "stale_version" | "request_id_conflict" | "transition_rejected";
+      readonly detail?: unknown;
+    };
+
+export interface ApplyCardClashTransitionParams {
+  readonly matchId: number;
+  readonly requestId: string;
+  readonly expectedVersion: number;
+  // A TRUSTED pure-engine transition — e.g. `(state) => playAttack(state,
+  // seat, target, expectedVersion)` from card-clash/combat.ts. This module
+  // never inspects or validates what kind of action is being taken; that is
+  // entirely the pure engine's job. It only guarantees the transaction/
+  // version/idempotency contract around whatever transition the caller
+  // supplies, and never accepts a raw client-supplied MatchState as the new
+  // authoritative state — the new state can only ever come from calling
+  // this function against the state this module itself just read from the
+  // database.
+  readonly transition: (
+    state: CardClashMatchState,
+  ) => { readonly ok: true; readonly state: CardClashMatchState } | { readonly ok: false; readonly reason: unknown };
+}
+
+// The full exactly-once, transactional transition contract for Card Clash,
+// mirroring poker's submitBettingAction: re-reads the authoritative state
+// fresh inside the transaction, treats a repeated request_id as an
+// idempotent no-op (returning the current persisted match rather than
+// reapplying), and — only if every check passes — writes the entire new
+// state atomically in one UPDATE, so public events and game state can never
+// commit independently and drift apart.
+//
+// This generic layer has no visibility into what a specific transition
+// actually does, so its "conflict" detection is necessarily version-based
+// (the same request_id reused with a different expectedVersion), not
+// content-aware the way poker's seat/action/amount comparison is — a
+// documented, deliberate limitation of this intentionally action-agnostic
+// interface, not an oversight.
+export function applyCardClashTransition(params: ApplyCardClashTransitionParams): ApplyCardClashTransitionResult {
+  const { matchId, requestId, expectedVersion, transition } = params;
+
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const row = getCardClashMatchRowById(matchId);
+    if (!row) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "match_not_found" };
+    }
+
+    const existingAction = db
+      .prepare("SELECT expected_version FROM card_clash_match_actions WHERE match_id = ? AND request_id = ?")
+      .get(matchId, requestId) as { expected_version: number } | undefined;
+    if (existingAction) {
+      db.exec("ROLLBACK"); // read-only path either way: duplicate or conflict, nothing to write
+      if (existingAction.expected_version !== expectedVersion) {
+        return { ok: false, reason: "request_id_conflict" };
+      }
+      return { ok: true, duplicate: true, match: toPersistedCardClashMatch(row) };
+    }
+
+    if (row.version !== expectedVersion) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "stale_version" };
+    }
+
+    const currentState = deserializeCardClashMatchState(row.state_json);
+    const result = transition(currentState);
+    if (!result.ok) {
+      db.exec("ROLLBACK");
+      return { ok: false, reason: "transition_rejected", detail: result.reason };
+    }
+
+    const newStateJson = serializeCardClashMatchState(result.state);
+    db.prepare(
+      `UPDATE card_clash_matches SET version = ?, state_json = ?, updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+       WHERE id = ? AND version = ?`,
+    ).run(result.state.version, newStateJson, matchId, expectedVersion);
+    db.prepare(
+      "INSERT INTO card_clash_match_actions (match_id, request_id, expected_version, resulting_version) VALUES (?, ?, ?, ?)",
+    ).run(matchId, requestId, expectedVersion, result.state.version);
+
+    if (result.state.matchResult.status === "complete") {
+      db.prepare("UPDATE card_clash_rooms SET status = 'complete' WHERE id = ?").run(row.room_id);
+    }
+
+    db.exec("COMMIT");
+    return { ok: true, duplicate: false, match: { id: matchId, roomId: row.room_id, version: result.state.version, state: result.state } };
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
 }

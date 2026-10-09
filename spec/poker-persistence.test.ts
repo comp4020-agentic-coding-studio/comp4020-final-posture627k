@@ -64,7 +64,9 @@ it("1. the v5 -> v6 migration succeeds: hand/hand-player/action tables exist", (
     .all() as { name: string }[];
   expect(tables.map((t) => t.name).sort()).toEqual(["poker_actions", "poker_hand_players", "poker_hands"]);
   const version = raw.prepare("PRAGMA user_version").get() as { user_version: number };
-  expect(version.user_version).toBe(6);
+  // 7, not 6: schema version 7 (card-clash/ rooms/matches, D3A) is additive
+  // on top of poker's own v6 — poker's tables/behavior above are unchanged.
+  expect(version.user_version).toBe(7);
   raw.close();
 });
 
@@ -80,7 +82,7 @@ it("2. re-running the migration changes nothing", async () => {
   expect(stillActive?.version).toBe(created.ok ? created.hand.version : -1);
 });
 
-it("3. the old migration chain remains valid: a pure v1 database migrates all the way through to v6", async () => {
+it("3. the old migration chain remains valid: a pure v1 database migrates all the way through to the current schema version", async () => {
   const dbPath = join(tempDir, "app.sqlite");
   // beforeEach's own fresh import already created and fully migrated a
   // brand-new database at this path; this test specifically wants to start
@@ -121,7 +123,10 @@ it("3. the old migration chain remains valid: a pure v1 database migrates all th
   const fresh = await reopen();
   const rawAfter = openRaw();
   const version = rawAfter.prepare("PRAGMA user_version").get() as { user_version: number };
-  expect(version.user_version).toBe(6);
+  // 7, not 6: the chain now continues on through the additive v7 (Card
+  // Clash) migration too — the v1->v6 portion being exercised here is
+  // otherwise unchanged.
+  expect(version.user_version).toBe(7);
   const pokerTables = rawAfter
     .prepare("SELECT COUNT(*) AS n FROM sqlite_master WHERE type = 'table' AND name = 'poker_hands'")
     .get() as { n: number };
