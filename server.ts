@@ -32,6 +32,7 @@ import type { Card } from "./poker/cards.ts";
 import { getLegalActions, type BettingActionType, type Seat } from "./poker/betting.ts";
 import { publish, subscribe as subscribeToRealtimeUpdates } from "./realtime.ts";
 import {
+  applyCardClashTransition,
   CARD_CLASH_SEAT_COUNT,
   createCardClashRoom,
   getCardClashMatchForRoom,
@@ -44,6 +45,7 @@ import {
   type PersistedCardClashMatch,
 } from "./db.ts";
 import type { GameMode as CardClashMode, Seat as CardClashSeatNumber } from "./card-clash/types.ts";
+import { buildCardClashTransition, parseCardClashActionEnvelope } from "./card-clash/action-http.ts";
 
 // Co-located with this file so it resolves the same way locally and in the
 // Docker image, regardless of the process's working directory.
@@ -1292,6 +1294,110 @@ app.get("/api/card-clash/rooms/:code/state", (c) => {
   if (!match) return c.json({ error: "match_not_found" }, 404);
 
   return c.json(projectCardClashMatchForViewer(match, seat.seatNumber as CardClashSeatNumber));
+});
+
+// Defense-in-depth beyond SameSite=Lax, scoped to this new mutation route
+// only (the existing D3B room routes are left exactly as they were —
+// widening this to every route would be the kind of unrelated refactor
+// this slice avoids). Compares the browser-supplied Origin against this
+// SAME request's own Host header — never a separately configured "public
+// origin" value, which would be wrong for local dev and fragile behind a
+// proxy. A request with no Origin header at all is not rejected here (many
+// legitimate same-origin and non-browser requests omit it); only a
+// present-but-mismatched Origin is. This never trusts a forwarded-host
+// header for the comparison, only the request's own Host.
+function isAllowedCardClashActionOrigin(c: Context): boolean {
+  const origin = c.req.header("origin");
+  if (!origin) return true;
+  try {
+    const requestHost = c.req.header("host");
+    return requestHost !== undefined && new URL(origin).host === requestHost;
+  } catch {
+    return false;
+  }
+}
+
+const CARD_CLASH_ACTION_MAX_BODY_BYTES = 4096;
+
+// The one gameplay-action endpoint (D4A): every existing engine action —
+// Attack, Dodge/decline, proactive Heal, Seize, Disarm, Insight, War Cry,
+// Arrow Volley, group responses, dying-rescue Heal/decline, end-turn, and
+// manual discard — dispatched through card-clash/action-http.ts's single
+// typed adapter onto the SAME trusted-transition contract D3A's
+// applyCardClashTransition already enforces (version check, idempotent
+// request_id, atomic commit). No SSE, no timers — the acting browser gets
+// its own updated viewer-filtered state back in the response; cross-
+// browser live updates are a later slice.
+app.post("/api/card-clash/rooms/:code/actions", async (c) => {
+  if (!isAllowedCardClashActionOrigin(c)) {
+    return c.json({ error: "invalid_origin" }, 403);
+  }
+
+  const room = getCardClashRoomByCode(c.req.param("code"));
+  if (!room) return c.json({ error: "room_not_found" }, 404);
+
+  const identityId = c.get("identityId");
+  const seat = getCardClashSeatForIdentity(room.id, identityId);
+  if (!seat) return c.json({ error: "not_a_player" }, 403);
+
+  // Covers both "not started yet" and "already finished" in one check —
+  // room.status leaves 'active' in exactly those two cases.
+  if (room.status !== "active") {
+    return c.json({ error: "match_not_active" }, 409);
+  }
+
+  const contentType = c.req.header("content-type") ?? "";
+  if (!contentType.toLowerCase().startsWith("application/json")) {
+    return c.json({ error: "invalid_content_type" }, 400);
+  }
+
+  const rawBody = await c.req.text();
+  if (rawBody.length > CARD_CLASH_ACTION_MAX_BODY_BYTES) {
+    return c.json({ error: "request_too_large" }, 400);
+  }
+
+  let parsedBody: unknown;
+  try {
+    parsedBody = JSON.parse(rawBody);
+  } catch {
+    return c.json({ error: "invalid_json" }, 400);
+  }
+
+  const envelope = parseCardClashActionEnvelope(parsedBody);
+  if (!envelope) return c.json({ error: "invalid_request" }, 400);
+
+  const seatNumber = seat.seatNumber as CardClashSeatNumber;
+  const match = getCardClashMatchForRoom(room.id);
+  if (!match) return c.json({ error: "match_not_found" }, 404); // defensive; unreachable given room.status === "active"
+  if (match.state.players.get(seatNumber)?.eliminated) {
+    return c.json({ error: "eliminated" }, 403);
+  }
+
+  const result = applyCardClashTransition({
+    matchId: match.id,
+    requestId: envelope.requestId,
+    expectedVersion: envelope.expectedVersion,
+    transition: buildCardClashTransition(envelope.action, seatNumber, envelope.expectedVersion),
+  });
+
+  if (!result.ok) {
+    // result.reason is always one of the trusted layers' own typed
+    // rejection values (storage-level: match_not_found/stale_version/
+    // request_id_conflict/transition_rejected; or, nested in `detail` for
+    // transition_rejected, the pure engine's own reason, e.g.
+    // not_your_turn/card_not_in_hand/wrong_response_type) — never a raw
+    // SQL error, stack trace, or internal secret.
+    const status = result.reason === "match_not_found" ? 404 : 409;
+    return c.json(
+      { error: result.reason, detail: "detail" in result ? result.detail : undefined },
+      status,
+    );
+  }
+
+  return c.json({
+    duplicate: result.duplicate,
+    ...projectCardClashMatchForViewer(result.match, seatNumber),
+  });
 });
 
 app.get("/readme/", (c) => {
