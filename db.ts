@@ -1393,7 +1393,9 @@ export function getShowdownHoleCards(handId: number): Partial<Record<PokerSeatNu
 // contract around it — exactly poker's own division of responsibility
 // between poker/*.ts and this file.
 
-const CARD_CLASH_SEAT_COUNT: Readonly<Record<CardClashMode, number>> = { "1v1": 2, "1v2": 3, "2v2": 4 };
+// Exported so the HTTP layer (server.ts) can compute a room's required seat
+// count for lobby metadata without duplicating this table.
+export const CARD_CLASH_SEAT_COUNT: Readonly<Record<CardClashMode, number>> = { "1v1": 2, "1v2": 3, "2v2": 4 };
 
 // A separate code generator from poker's (not shared code, not a shared
 // uniqueness domain) — a Card Clash room is not a renamed poker table, and

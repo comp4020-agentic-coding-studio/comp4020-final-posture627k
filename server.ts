@@ -31,6 +31,19 @@ import {
 import type { Card } from "./poker/cards.ts";
 import { getLegalActions, type BettingActionType, type Seat } from "./poker/betting.ts";
 import { publish, subscribe as subscribeToRealtimeUpdates } from "./realtime.ts";
+import {
+  CARD_CLASH_SEAT_COUNT,
+  createCardClashRoom,
+  getCardClashMatchForRoom,
+  getCardClashRoomByCode,
+  getCardClashSeatForIdentity,
+  getCardClashSeatsForRoom,
+  joinCardClashRoom,
+  setCardClashSeatReady,
+  startCardClashMatch,
+  type PersistedCardClashMatch,
+} from "./db.ts";
+import type { GameMode as CardClashMode, Seat as CardClashSeatNumber } from "./card-clash/types.ts";
 
 // Co-located with this file so it resolves the same way locally and in the
 // Docker image, regardless of the process's working directory.
@@ -1118,6 +1131,167 @@ app.get("/t/:code/events", (c) => {
     // failure, etc.), at which point cleanup runs exactly once.
     await aborted;
   });
+});
+
+// --- Card Clash: HTTP rooms, identity, and private state views (D3B) -------
+// A minimal JSON API under /api/card-clash, built on the SAME identity
+// middleware/cookie as every route above — no second identity system, no
+// client-supplied identity ever trusted. Every room-membership/authorization
+// decision below is derived solely from c.get("identityId"). No gameplay
+// ACTION endpoints exist yet (no Attack/Heal/Seize/etc. routes) — only room
+// lifecycle (create/join/ready/start) and read-only state views, per this
+// slice's explicit scope. No SSE, no timers, no UI.
+
+const CARD_CLASH_MODES: ReadonlySet<string> = new Set(["1v1", "1v2", "2v2"]);
+
+async function readJsonBody(c: Context): Promise<unknown> {
+  try {
+    return await c.req.json();
+  } catch {
+    return undefined;
+  }
+}
+
+// Shapes one viewer's own authorized view of a match: every seat's public
+// info (team/HP/eliminated/hand SIZE), but actual hole-card contents only
+// for the viewer's own seat — never another seat's hand, and never the raw
+// draw pile (only its remaining count). `pending`/`matchResult`/`publicLog`
+// are safe to include for every viewer as-is: by construction (card-clash/
+// combat.ts, group-effects.ts, effects.ts) they never carry hidden card
+// identities or deck order.
+function projectCardClashMatchForViewer(match: PersistedCardClashMatch, viewerSeat: CardClashSeatNumber | undefined) {
+  const state = match.state;
+  const players = [...state.players.entries()]
+    .sort(([a], [b]) => a - b)
+    .map(([seatNumber, player]) => ({
+      seat: seatNumber,
+      team: player.team,
+      maxHp: player.maxHp,
+      hp: player.hp,
+      eliminated: player.eliminated,
+      handSize: player.hand.length,
+      ...(seatNumber === viewerSeat ? { hand: player.hand } : {}),
+    }));
+
+  return {
+    matchId: match.id,
+    roomId: match.roomId,
+    version: match.version,
+    mode: state.mode,
+    activeSeat: state.activeSeat,
+    normalAttacksUsedThisTurn: state.normalAttacksUsedThisTurn,
+    drawPileCount: state.drawPile.length,
+    discardPile: state.discardPile,
+    pending: state.pending,
+    matchResult: state.matchResult,
+    publicLog: state.publicLog,
+    players,
+    viewerSeat: viewerSeat ?? null,
+  };
+}
+
+app.post("/api/card-clash/rooms", async (c) => {
+  const identityId = c.get("identityId");
+  const body = await readJsonBody(c);
+  const mode = typeof (body as { mode?: unknown } | undefined)?.mode === "string" ? (body as { mode: string }).mode : undefined;
+  if (!mode || !CARD_CLASH_MODES.has(mode)) {
+    return c.json({ error: "invalid_mode" }, 400);
+  }
+
+  const room = createCardClashRoom(mode as CardClashMode, identityId);
+  return c.json(
+    { code: room.code, mode: room.mode, status: room.status, ownSeat: 1, requiredSeats: CARD_CLASH_SEAT_COUNT[room.mode] },
+    201,
+  );
+});
+
+app.get("/api/card-clash/rooms/:code", (c) => {
+  const room = getCardClashRoomByCode(c.req.param("code"));
+  if (!room) return c.json({ error: "room_not_found" }, 404);
+
+  const identityId = c.get("identityId");
+  const seats = getCardClashSeatsForRoom(room.id);
+  const viewerSeat = seats.find((s) => s.identityId === identityId)?.seatNumber;
+
+  return c.json({
+    code: room.code,
+    mode: room.mode,
+    status: room.status,
+    requiredSeats: CARD_CLASH_SEAT_COUNT[room.mode],
+    hostSeat: 1,
+    // Never identityId — an internal server-side reference, not for other
+    // players to see — only seat number and readiness.
+    seats: seats.map((s) => ({ seatNumber: s.seatNumber, ready: s.ready })),
+    viewerSeat: viewerSeat ?? null,
+  });
+});
+
+app.post("/api/card-clash/rooms/:code/join", (c) => {
+  const room = getCardClashRoomByCode(c.req.param("code"));
+  if (!room) return c.json({ error: "room_not_found" }, 404);
+
+  const identityId = c.get("identityId");
+  const result = joinCardClashRoom(room.id, identityId);
+  if (!result.ok) {
+    const status = result.reason === "room_not_found" ? 404 : 409;
+    return c.json({ error: result.reason }, status);
+  }
+  return c.json({ seatNumber: result.seatNumber, alreadyJoined: result.alreadyJoined });
+});
+
+app.post("/api/card-clash/rooms/:code/ready", async (c) => {
+  const room = getCardClashRoomByCode(c.req.param("code"));
+  if (!room) return c.json({ error: "room_not_found" }, 404);
+
+  // Only `ready` is ever read from the body — no target seat, no identity
+  // field of any kind is accepted from the client; the acting seat is
+  // always c.get("identityId")'s own seat.
+  const body = await readJsonBody(c);
+  const ready = (body as { ready?: unknown } | undefined)?.ready;
+  if (typeof ready !== "boolean") {
+    return c.json({ error: "invalid_request" }, 400);
+  }
+
+  const identityId = c.get("identityId");
+  const result = setCardClashSeatReady(room.id, identityId, ready);
+  if (!result.ok) {
+    const status = result.reason === "not_a_player" ? 403 : 409;
+    return c.json({ error: result.reason }, status);
+  }
+  return c.json({ ready });
+});
+
+app.post("/api/card-clash/rooms/:code/start", (c) => {
+  const room = getCardClashRoomByCode(c.req.param("code"));
+  if (!room) return c.json({ error: "room_not_found" }, 404);
+
+  const identityId = c.get("identityId");
+  const result = startCardClashMatch(room.id, identityId);
+  if (!result.ok) {
+    const status = result.reason === "not_the_host" ? 403 : result.reason === "room_not_found" ? 404 : 409;
+    return c.json({ error: result.reason }, status);
+  }
+
+  const viewerSeat = getCardClashSeatForIdentity(room.id, identityId)?.seatNumber as CardClashSeatNumber | undefined;
+  return c.json(projectCardClashMatchForViewer(result.match, viewerSeat));
+});
+
+app.get("/api/card-clash/rooms/:code/state", (c) => {
+  const room = getCardClashRoomByCode(c.req.param("code"));
+  if (!room) return c.json({ error: "room_not_found" }, 404);
+
+  const identityId = c.get("identityId");
+  const seat = getCardClashSeatForIdentity(room.id, identityId);
+  if (!seat) return c.json({ error: "not_a_player" }, 403);
+
+  if (room.status === "waiting") {
+    return c.json({ status: "waiting" }, 409); // defined, non-leaking: no match exists to view yet
+  }
+
+  const match = getCardClashMatchForRoom(room.id);
+  if (!match) return c.json({ error: "match_not_found" }, 404);
+
+  return c.json(projectCardClashMatchForViewer(match, seat.seatNumber as CardClashSeatNumber));
 });
 
 app.get("/readme/", (c) => {
