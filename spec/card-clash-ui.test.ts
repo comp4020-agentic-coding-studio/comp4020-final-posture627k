@@ -85,7 +85,7 @@ async function openPage(jar: CookieJar, search = ""): Promise<JSDOM> {
   });
 }
 
-it("serves the page with HTTP 200, leaves the Poker Lab homepage alone, and never uses innerHTML", async () => {
+it("serves the page with HTTP 200 at / and /card-clash (same app, no redirect), keeps legacy Poker at /poker, and never uses innerHTML", async () => {
   const jar = new CookieJar();
   const res = await jar.fetch("/card-clash");
   expect(res.status).toBe(200);
@@ -94,9 +94,17 @@ it("serves the page with HTTP 200, leaves the Poker Lab homepage alone, and neve
   expect(html).toContain("Card Clash");
   expect(html).not.toContain("innerHTML");
   expect(html).toContain("/api/card-clash/rooms");
-  const home = await (await jar.fetch("/")).text();
-  expect(home).toContain("Poker Lab");
-  expect(home).not.toContain("Card Clash");
+  const homeRes = await jar.fetch("/", { redirect: "manual" });
+  expect(homeRes.status).toBe(200);
+  const home = await homeRes.text();
+  expect(home).toBe(html);
+  expect(await (await jar.fetch("/?room=ABCD1234")).text()).toBe(html); // invites work on / too
+  expect(await (await jar.fetch("/readme/")).text()).toContain("Card Clash");
+  expect(home).toContain("<title>Card Clash</title>");
+  expect(home).not.toContain("Poker Lab");
+  const legacy = await (await jar.fetch("/poker")).text();
+  expect(legacy).toContain("Poker Lab");
+  expect((await jar.fetch("/t/ZZZZZZZZ")).status).toBe(404); // legacy table routes still answer
 });
 
 it("state projection exposes a public turnPhase: main, then discard after ending a turn with excess cards", async () => {

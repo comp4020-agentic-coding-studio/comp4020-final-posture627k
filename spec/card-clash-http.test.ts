@@ -265,7 +265,10 @@ it("existing Poker Lab and course-invariant routes remain operational alongside 
   const jar = new CookieJar();
   const home = await jar.fetch("/");
   expect(home.status).toBe(200);
-  expect(await home.text()).toContain("Poker Lab");
+  expect(await home.text()).toContain("Card Clash");
+  const legacy = await jar.fetch("/poker");
+  expect(legacy.status).toBe(200);
+  expect(await legacy.text()).toContain("Poker Lab");
 
   const readme = await jar.fetch("/readme/");
   expect(readme.status).toBe(200);

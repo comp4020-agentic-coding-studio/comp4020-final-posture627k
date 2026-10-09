@@ -344,7 +344,8 @@ app.use("*", async (c, next) => {
   await next();
 });
 
-app.get("/", (c) => {
+// Legacy Poker Lab landing, kept reachable at a direct URL only (D5C).
+app.get("/poker", (c) => {
   return c.html(
     pageShell(
       "Poker Lab",
@@ -1211,7 +1212,11 @@ function projectCardClashMatchForViewer(
   };
 }
 
-app.get("/card-clash", (c) => c.html(renderCardClashPage()));
+// One shared handler: Card Clash is the primary site at / (HTTP 200, no
+// redirect, as the course invariant requires) and stays at /card-clash.
+const cardClashHome = (c: Context) => c.html(renderCardClashPage());
+app.get("/", cardClashHome);
+app.get("/card-clash", cardClashHome);
 
 app.post("/api/card-clash/rooms", async (c) => {
   const identityId = c.get("identityId");

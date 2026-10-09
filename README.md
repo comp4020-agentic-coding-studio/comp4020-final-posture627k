@@ -1,84 +1,73 @@
-# Poker Lab
+# Card Clash
 
-A multiplayer, real-time, persistent, non-cash Texas Hold'em poker
-application. Players play with virtual chips only: no real money, no
-purchases, no prizes, no cash-out, and no payments or wagering integration
-of any kind.
+A real-time, multiplayer, server-authoritative card-combat game for 2–4
+players. It is an original game with no gambling, no stakes and no payments:
+players fight with action cards and hit points only.
 
-This project was previously a grid-based multiplayer strategy war game
-(documented in `docs/crit-8-architecture.md` and `docs/crit-9-architecture.md`,
-and in the Crit 8 reflection). That product is cancelled by explicit decision
-— see `docs/poker-final-architecture.md` for the pivot's architecture
-decision record. Its infrastructure (identity, persistence, transactions,
-realtime transport) is reused for Poker Lab; its gameplay is not.
+Live: https://comp4020-final-posture627k.fly.dev/
 
-This is an early foundation slice, not a playable game yet. What's
-implemented now is covered under "Foundation slice scope" below. Dealing
-cards, betting, hands and chip settlement are not implemented yet.
+## How it came about
 
-## Who it's for
+This project began as a grid-based multiplayer strategy war game (see
+`docs/crit-8-architecture.md`, `docs/crit-9-architecture.md`), was pivoted to a
+Texas Hold'em "Poker Lab" (`docs/poker-final-architecture.md`), and was then
+replaced by Card Clash. The identity, SQLite persistence, transactions and
+realtime plumbing were reused each time. The legacy Poker Lab code, routes
+(for example `/poker` and `/t/:code`) and database tables are kept intact but
+are no longer the product.
 
-Two players who want to play heads-up Texas Hold'em together online, for
-fun, with no stakes attached.
+## Modes and rooms
 
-## What players will do (once complete)
+Three modes, with fixed seats and teams: 1v1, 1v2 (one host against two
+allies) and 2v2. A player creates a room, shares the invite link
+(`/?room=CODE` or `/card-clash?room=CODE`), others join, everyone marks
+Ready, and the host (seat 1) starts the game. Identity is an anonymous,
+server-issued, HttpOnly cookie; there are no accounts.
 
-Create a table, invite another player, join and take a seat, start a hand,
-receive private hole cards, post blinds, bet through preflop/flop/turn/
-river, reach a showdown or an uncontested win, settle chips, and start
-another hand — all server-authoritative and persistent, with each player
-seeing only their own private information.
+## Playing
 
-## Foundation slice scope
+On your turn you draw, then play cards, then end your turn (hand limit: your
+current HP). The eight cards are Attack, Dodge, Heal, Seize, Disarm, Insight,
+War Cry and Arrow Volley. Attack, War Cry and Arrow Volley ask opponents to
+respond (Dodge or Attack, otherwise they lose 1 HP). A player reaching 0 HP
+enters a rescue sequence where others may play Heal; otherwise they are
+eliminated. A team wins when the other team is eliminated. The full frozen
+rules are in `docs/card-clash-rules.md`.
 
-This stage implements:
+## Server-authoritative timing
 
-1. a landing page describing Poker Lab, with no war-game interface or copy
-2. create a poker table
-3. join an existing poker table by its code
-4. exactly two seats per table, each tied to a distinct anonymous identity
-5. an identity cannot occupy both seats, and a seat cannot be claimed twice
-6. each seated player starts with a non-purchasable virtual chip stack
-7. a table's lifecycle status (waiting for a second player, or both seats
-   filled)
-8. real-time updates: a player joining is reflected in the other player's
-   open browser tab without a reload
-9. persistent table/seat state that survives a server restart
-10. a responsive layout usable on both desktop and mobile
+Every action, response and discard window is 10 seconds, stored as an
+absolute deadline in SQLite. On expiry the server declines for the player,
+ends the turn, or randomly discards exactly the excess cards, atomically.
+The browser countdown is display-only. Known limitation: the Fly machine
+auto-stops when idle, so a timer cannot fire while it is stopped; overdue
+deadlines are applied when the machine next starts or a request arrives.
 
-## Non-goals for this slice
+## Privacy and realtime
 
-Explicitly not implemented yet:
+The server sends each viewer only their own hand; opponents show card counts,
+and the draw pile is never sent. Realtime uses room-scoped Server-Sent Events
+that carry only an "invalidate" signal; the browser then refetches its
+filtered state.
 
-- dealing cards, hole cards, or any hand state
-- blinds, betting, folding, calling, raising, or any wagering action
-- showdown, hand evaluation, or chip settlement
-- reconnect/recovery of in-progress hand state (there is no hand state yet)
-- more than two seats per table
-- side pots or any multiplayer-specific pot logic
-- hand history, replay, or statistics
+## Architecture
 
-## Explicit exclusions (always out of scope)
+- `server.ts`: Hono app, identity middleware, HTTP and SSE routes.
+- `card-clash/`: pure rules engine (`engine`, `combat`, `effects`,
+  `group-effects`, `turn-flow`), deadlines (`timers`, `scheduler`), action
+  parsing (`action-http`), the realtime hub and the browser page (`ui.ts`,
+  plain HTML/CSS/JS, no build step).
+- `db.ts`: SQLite (schema v8) with additive migrations.
 
-- real-money betting, purchased chips, cryptocurrency, or redeemable prizes
-- player-to-player transfers of real-world value
-- AI poker opponents
-- tournament systems or public gambling leaderboards
-- payment or wagering integrations
+## Development and testing
 
-## Defaults used in this slice
+Node 24 runs the TypeScript directly. Start the app with
+`DATA_DIR=$(mktemp -d) PORT=8080 node server.ts`, then run
+`APP_URL=http://localhost:8080 pnpm check` (typecheck plus the spec suite) and
+`pnpm check:evidence`. A two-person manual test script is in
+`docs/card-clash-playtest.md`; the release steps are in
+`docs/card-clash-release-checklist.md`.
 
-Development defaults, not an approved permanent product configuration:
-1,000 virtual chips per seat, small blind 5, big blind 10, no ante, no rake.
-These are stored per table (not hard-coded constants) so a later slice can
-make them configurable without a schema change.
+## Not implemented
 
-## Persistence and identity
-
-Tables and seats are stored in SQLite, in the same database and using the
-same anonymous, server-issued, HttpOnly-cookie identity as the rest of this
-project — reused unchanged from the strategy-war product. The old
-strategy-war tables (campaigns, participants, countries, tiles, buildings)
-may still physically exist in an existing database file for migration
-compatibility, but nothing in the poker application reads from or writes to
-them, and no old campaign data is ever converted into poker data.
+Rematch, player replacement, accounts, and any card beyond the eight above.

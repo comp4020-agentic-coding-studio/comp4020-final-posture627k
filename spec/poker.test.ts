@@ -121,9 +121,9 @@ function sseEvents(response: Response): {
 
 // --- 1. Poker landing page -----------------------------------------------
 
-it("the poker landing page returns 200 and describes Poker Lab", async () => {
+it("the legacy poker landing page (/poker) returns 200 and describes Poker Lab", async () => {
   const jar = new CookieJar();
-  const res = await jar.fetch("/");
+  const res = await jar.fetch("/poker");
   expect(res.status).toBe(200);
   const html = await res.text();
   expect(html).toContain("Poker Lab");
