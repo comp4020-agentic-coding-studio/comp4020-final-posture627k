@@ -8,7 +8,7 @@ import { CARD_DISTRIBUTION, type Card } from "./cards.ts";
 
 export type RandomInt = (max: number) => number; // uniform in [0, max)
 
-const defaultRandomInt: RandomInt = (max) => randomInt(max);
+export const defaultRandomInt: RandomInt = (max) => randomInt(max);
 
 // Builds one fresh, unshuffled 64-card deck for deck `generation` (see
 // shuffleNewDeck below for why the generation number is embedded in each

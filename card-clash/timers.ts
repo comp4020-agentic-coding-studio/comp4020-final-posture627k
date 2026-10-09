@@ -14,7 +14,8 @@
 // same as a terminal match) but never resolved on its own — a human
 // decision is still required before any such policy exists.
 
-import { endTurn } from "./engine.ts";
+import { autoDiscardAndAdvance, endMainPhase } from "./turn-flow.ts";
+import type { RandomInt } from "./deck.ts";
 import { respondToAttack, respondToRescue } from "./combat.ts";
 import { respondToGroupEffect } from "./group-effects.ts";
 import type { MatchState, Seat } from "./types.ts";
@@ -35,13 +36,20 @@ export interface CardClashDeadlineInfo {
 // Returns null when no timer should run right now: the match is over, or
 // the active player's hand already exceeds their current-HP limit (the
 // unresolved DISCARD block above — docs §11's open decision).
-export function computeNextCardClashDeadline(state: MatchState, nowMs: number): CardClashDeadlineInfo | null {
+export function computeNextCardClashDeadline(
+  state: MatchState,
+  nowMs: number,
+  // Supplied only when a DISCARD phase continues across a transition
+  // (partial manual discard): its single absolute deadline is preserved.
+  preserveDiscardDeadline?: CardClashDeadlineInfo,
+): CardClashDeadlineInfo | null {
   if (state.matchResult.status === "complete") return null;
 
   const pending = state.pending;
   if (pending === undefined) {
-    const active = state.players.get(state.activeSeat)!;
-    if (active.hand.length > active.hp) return null;
+    if (state.turnPhase === "discard" && preserveDiscardDeadline && preserveDiscardDeadline.responderSeat === state.activeSeat) {
+      return preserveDiscardDeadline;
+    }
     return { responderSeat: state.activeSeat, expiresAt: nowMs + CARD_CLASH_DEADLINE_MS };
   }
   if (pending.kind === "attack_response") {
@@ -71,18 +79,19 @@ export interface CardClashTimeoutOutcome {
 // after confirming that deadline is still current for this exact state);
 // if it has somehow drifted from the state's own authorized responder this
 // is treated as a no-op rather than silently acting for the wrong seat.
-export function applyCardClashTimeoutTransition(state: MatchState, responderSeat: Seat): CardClashTimeoutOutcome {
+export function applyCardClashTimeoutTransition(state: MatchState, responderSeat: Seat, randomSource?: RandomInt): CardClashTimeoutOutcome {
   if (state.matchResult.status === "complete") return { changed: false, state };
 
   const pending = state.pending;
 
   if (pending === undefined) {
     if (state.activeSeat !== responderSeat) return { changed: false, state };
-    const result = endTurn(state, state.activeSeat);
-    // ok:false here is exactly the hand_exceeds_hp_limit DISCARD block (the
-    // only other endTurn rejection reasons — not_active_seat/
-    // response_pending/match_complete — are all already ruled out above by
-    // construction), so this is the expected, non-error no-op path.
+    // MAIN timeout: end the action phase (advance, or enter DISCARD). DISCARD
+    // timeout: randomly discard exactly the excess, then advance.
+    const result =
+      state.turnPhase === "discard"
+        ? autoDiscardAndAdvance(state, state.activeSeat, randomSource)
+        : endMainPhase(state, state.activeSeat, randomSource);
     return result.ok ? { changed: true, state: result.state } : { changed: false, state };
   }
 

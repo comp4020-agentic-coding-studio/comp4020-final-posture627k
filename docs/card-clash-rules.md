@@ -307,14 +307,24 @@ The approved counterclockwise rescue order (§4) is unchanged by v2.6:
 
 Enemies may rescue dying enemies (unchanged from §4).
 
-### Discard-phase timeout — OPEN DESIGN DECISION, NOT APPROVED
+### Discard phase and timeout (approved, v2.6)
 
-Earlier planning suggested server-random discarding of excess cards when
-the discard-phase timer expires. **The user has not explicitly approved
-this policy.** It must not be presented as a finalized rule, and must not
-be implemented in D1A or any slice until explicitly approved here. Until
-then, the discard phase has no timeout behavior defined — a human decision
-is required before any automatic/random discard-on-timeout logic exists.
+- If the active player ends MAIN (voluntarily or by MAIN timeout) holding
+  no more cards than their **current HP**, no DISCARD phase occurs: the
+  turn advances immediately to the next living player, whose MAIN period
+  (and 10-second deadline) begins at once.
+- If they hold more, the DISCARD phase begins with **one** 10-second
+  deadline for the whole phase. They may discard manually; partial manual
+  discarding does **not** reset or extend the deadline, and invalid
+  discard attempts never change it. Reaching the limit ends DISCARD
+  immediately and advances the turn.
+- If the deadline expires while excess cards remain, the server
+  **randomly discards exactly the excess** from that player's own hand
+  (uniform, without replacement, cryptographically secure randomness), puts
+  them on the public discard pile (never recycled into the draw pile), then
+  advances to the next living player, who performs their normal draw and
+  receives a fresh MAIN deadline. All of this is one atomic transition.
+- During DISCARD only discarding and ending the turn are accepted.
 
 ### Server-authoritative implementation requirements (future slices)
 

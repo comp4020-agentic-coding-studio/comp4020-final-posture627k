@@ -1968,7 +1968,13 @@ export function applyCardClashTransition(params: ApplyCardClashTransitionParams)
     // a successful gameplay transition always either persists the next
     // applicable deadline or explicitly records that none applies right now
     // (D4C-1 task spec §4).
-    const nextDeadline = computeNextCardClashDeadline(result.state, nowMs);
+    // A DISCARD phase continuing across a partial manual discard keeps its
+    // ORIGINAL absolute deadline (one 10 s window for the whole phase).
+    const preserve =
+      currentState.turnPhase === "discard" && result.state.turnPhase === "discard" && activeDeadline
+        ? { responderSeat: activeDeadline.responderSeat, expiresAt: activeDeadline.expiresAt }
+        : undefined;
+    const nextDeadline = computeNextCardClashDeadline(result.state, nowMs, preserve);
     upsertCardClashDeadlineInTx(matchId, result.state.version, nextDeadline);
 
     db.exec("COMMIT");
@@ -2012,7 +2018,12 @@ export interface ProcessCardClashTimeoutResult {
 // version the deadline was scheduled against (captured by the caller at
 // schedule time), so an obsolete or duplicate callback for a version that
 // has since moved on is guaranteed to find a mismatch and do nothing.
-export function processCardClashTimeout(matchId: number, expectedVersion: number, nowMs: number): ProcessCardClashTimeoutResult {
+export function processCardClashTimeout(
+  matchId: number,
+  expectedVersion: number,
+  nowMs: number,
+  randomSource?: RandomInt,
+): ProcessCardClashTimeoutResult {
   db.exec("BEGIN IMMEDIATE");
   try {
     const row = getCardClashMatchRowById(matchId);
@@ -2039,7 +2050,7 @@ export function processCardClashTimeout(matchId: number, expectedVersion: number
     }
 
     const currentState = deserializeCardClashMatchState(row.state_json);
-    const outcome = applyCardClashTimeoutTransition(currentState, currentDeadline!.responderSeat);
+    const outcome = applyCardClashTimeoutTransition(currentState, currentDeadline!.responderSeat, randomSource);
 
     let finalState = currentState;
     if (outcome.changed) {

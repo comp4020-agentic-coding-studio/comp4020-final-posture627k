@@ -20,6 +20,7 @@ import {
   type PersistedCardClashMatch,
 } from "../db.ts";
 import { publishCardClashRoomEvent } from "./realtime.ts";
+import type { RandomInt } from "./deck.ts";
 import type { Seat } from "./types.ts";
 
 export interface ScheduledCardClashDeadline {
@@ -82,8 +83,8 @@ function toScheduled(
 // `expectedVersion` (a duplicate or obsolete callback) — db.ts's
 // processCardClashTimeout treats that as a no-op and this never publishes
 // or reports "applied" for a no-op.
-export function runCardClashTimeoutCheck(matchId: number, roomId: number, expectedVersion: number, nowMs: number): boolean {
-  const result = processCardClashTimeout(matchId, expectedVersion, nowMs);
+export function runCardClashTimeoutCheck(matchId: number, roomId: number, expectedVersion: number, nowMs: number, randomSource?: RandomInt): boolean {
+  const result = processCardClashTimeout(matchId, expectedVersion, nowMs, randomSource);
   if (result.applied) {
     publishCardClashRoomEvent(roomId, "match");
   }
@@ -107,13 +108,13 @@ export interface ReconcileResult {
 // legal timeout transitions (one end-turn, one decline, etc.) applied in
 // order. Never sets a new deadline merely because this was called — it
 // only ever acts when the EXISTING persisted deadline is actually overdue.
-export function reconcileCardClashMatchIfOverdue(matchId: number, roomId: number, nowMs: number, maxSteps = 20): ReconcileResult {
+export function reconcileCardClashMatchIfOverdue(matchId: number, roomId: number, nowMs: number, maxSteps = 20, randomSource?: RandomInt): ReconcileResult {
   let match = getCardClashMatchById(matchId)!;
   let deadline = getCardClashDeadline(matchId);
   let appliedAny = false;
 
   for (let step = 0; step < maxSteps && deadline !== undefined && deadline.expiresAt <= nowMs; step++) {
-    const result = processCardClashTimeout(matchId, deadline.version, nowMs);
+    const result = processCardClashTimeout(matchId, deadline.version, nowMs, randomSource);
     if (result.match) match = result.match;
     if (!result.applied) {
       deadline = result.nextDeadline && result.match ? { ...result.nextDeadline, matchId, version: result.match.version } : undefined;

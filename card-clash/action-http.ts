@@ -17,7 +17,7 @@
 import { playAttack, respondToAttack, playHeal, respondToRescue } from "./combat.ts";
 import { playSeize, playDisarm, playInsight } from "./effects.ts";
 import { playGroupCard, respondToGroupEffect } from "./group-effects.ts";
-import { discardCards, endTurn } from "./engine.ts";
+import { discardAndMaybeAdvance, endMainPhase } from "./turn-flow.ts";
 import type { MatchState, Seat } from "./types.ts";
 
 export const CARD_CLASH_ACTION_TYPES = [
@@ -128,6 +128,15 @@ export type CardClashTransitionFn = (state: MatchState) => CardClashTransitionRe
 // client-supplied); every engine call below is the exact existing
 // function, never duplicated or reimplemented.
 export function buildCardClashTransition(action: ParsedCardClashAction, seat: Seat, expectedVersion: number): CardClashTransitionFn {
+  const inner = buildInnerTransition(action, seat, expectedVersion);
+  // D4C-2: during the DISCARD phase only discarding/ending is allowed.
+  return (state) =>
+    state.turnPhase === "discard" && action.type !== "discard_cards" && action.type !== "end_turn"
+      ? { ok: false, reason: "discard_phase" }
+      : inner(state);
+}
+
+function buildInnerTransition(action: ParsedCardClashAction, seat: Seat, expectedVersion: number): CardClashTransitionFn {
   switch (action.type) {
     case "play_attack":
       return (state) => playAttack(state, seat, action.targetSeat, expectedVersion);
@@ -164,8 +173,8 @@ export function buildCardClashTransition(action: ParsedCardClashAction, seat: Se
       // expectedVersion against the persisted row BEFORE ever invoking
       // this transition, so stale requests are rejected uniformly across
       // every action type regardless of this engine-level difference.
-      return (state) => endTurn(state, seat);
+      return (state) => endMainPhase(state, seat);
     case "discard_cards":
-      return (state) => discardCards(state, seat, action.cardIds);
+      return (state) => discardAndMaybeAdvance(state, seat, action.cardIds);
   }
 }

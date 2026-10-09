@@ -120,6 +120,10 @@ export interface MatchState {
   // beginTurnDraw). Only ever meaningful for the current activeSeat.
   readonly normalAttacksUsedThisTurn: number;
   readonly pending: PendingResponse | undefined;
+  // D4C-2: "discard" while the active seat is in the timed DISCARD phase
+  // (they ended MAIN holding more cards than their current HP). Absent/
+  // undefined means the ordinary MAIN phase. Cleared whenever the turn advances.
+  readonly turnPhase?: "discard";
   readonly matchResult: MatchResult;
   readonly publicLog: readonly PublicEvent[];
 }
