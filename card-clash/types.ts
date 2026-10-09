@@ -26,6 +26,44 @@ export interface PlayerState {
   readonly hasTakenFirstTurn: boolean;
 }
 
+// A single-target Attack awaiting the target's Dodge-or-decline response
+// (docs/card-clash-rules.md §2 D1B scope), or a dying-rescue sequence in
+// progress for one dying seat (§4). While either is set, MAIN-phase actions
+// (playAttack/playHeal/discardCards/endTurn) are all rejected — only the
+// specific action this pending state calls for may be submitted, and only
+// by the one seat named as the current responder.
+export type PendingResponse =
+  | { readonly kind: "attack_response"; readonly attacker: Seat; readonly target: Seat }
+  | {
+      readonly kind: "dying_rescue";
+      readonly dyingSeat: Seat;
+      // Seats still to be asked, in order, with `dyingSeat` always last
+      // (docs §4) — queue[0] is whoever must respond right now.
+      readonly queue: readonly Seat[];
+      // Whose MAIN-phase turn resumes once this rescue concludes (success
+      // or elimination), provided the match isn't over — always the seat
+      // whose Attack originally caused this rescue.
+      readonly resumeActiveSeat: Seat;
+    };
+
+export type MatchResult =
+  | { readonly status: "ongoing" }
+  | { readonly status: "complete"; readonly winningTeam: Team };
+
+// The smallest typed public-event record needed for D1B (docs §6): every
+// successfully played Attack/Dodge/Heal, every declined response, every
+// elimination, and match completion. Deliberately carries no hand contents
+// or draw-pile order — only actor/target/outcome, which is all that is
+// ever meant to be public.
+export type PublicEvent =
+  | { readonly type: "attack_played"; readonly actor: Seat; readonly target: Seat }
+  | { readonly type: "dodge_played"; readonly actor: Seat }
+  | { readonly type: "attack_response_declined"; readonly actor: Seat }
+  | { readonly type: "heal_played"; readonly actor: Seat; readonly target: Seat }
+  | { readonly type: "rescue_declined"; readonly actor: Seat }
+  | { readonly type: "eliminated"; readonly seat: Seat }
+  | { readonly type: "match_complete"; readonly winningTeam: Team };
+
 export interface MatchState {
   readonly mode: GameMode;
   // Keyed by seat; only the seats this mode actually uses are present
@@ -40,4 +78,17 @@ export interface MatchState {
   // is generated — see deck.ts's shuffleNewDeck for why this must never
   // repeat within one match (card id uniqueness across replenishments).
   readonly deckGeneration: number;
+  // Monotonic, incremented on every successful transition (D1A's and
+  // D1B's alike) — never on a rejected one. Callers that want optimistic
+  // concurrency (an `expectedVersion` check) can read this back; D1B's new
+  // combat/response/rescue actions enforce it, matching this project's
+  // existing poker-engine convention.
+  readonly version: number;
+  // How many normal Attacks the CURRENT active seat has played so far this
+  // turn — reset to 0 every time a new seat's turn begins (engine.ts's
+  // beginTurnDraw). Only ever meaningful for the current activeSeat.
+  readonly normalAttacksUsedThisTurn: number;
+  readonly pending: PendingResponse | undefined;
+  readonly matchResult: MatchResult;
+  readonly publicLog: readonly PublicEvent[];
 }

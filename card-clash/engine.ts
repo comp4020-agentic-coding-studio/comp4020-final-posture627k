@@ -34,6 +34,13 @@ export function initialHandSizeForSeat(mode: GameMode, seat: Seat): number {
   return mode === "2v2" && seat === 4 ? 5 : 4;
 }
 
+// Normal Attacks allowed per turn — docs/card-clash-rules.md §3: 1 for
+// everyone except the 1v2 host, who gets 2. War Cry/Arrow Volley (D2) do
+// not consume this allowance.
+export function normalAttackLimitForSeat(mode: GameMode, seat: Seat): number {
+  return mode === "1v2" && seat === 1 ? 2 : 1;
+}
+
 // How many cards `seat` draws at the start of their OWN turn.
 // `isFirstTurn` is that seat's own (negated) hasTakenFirstTurn flag — the
 // only seat/mode combination this changes is 2v2 seat 1's one-time
@@ -92,7 +99,9 @@ function beginTurnDraw(state: MatchState, seat: Seat, randomSource?: RandomInt):
   const drawn = drawInternal(state, seat, drawCountForSeat(state.mode, seat, !before.hasTakenFirstTurn), randomSource);
   const players = new Map(drawn.players);
   players.set(seat, { ...players.get(seat)!, hasTakenFirstTurn: true });
-  return { ...drawn, players, activeSeat: seat };
+  // A fresh turn resets the per-turn normal-Attack allowance (D1B) and
+  // bumps the monotonic version (every successful transition does).
+  return { ...drawn, players, activeSeat: seat, normalAttacksUsedThisTurn: 0, version: drawn.version + 1 };
 }
 
 export interface InitializeMatchOptions {
@@ -135,6 +144,11 @@ export function initializeMatch(options: InitializeMatchOptions): MatchState {
     drawPile,
     discardPile: [],
     deckGeneration: 1,
+    version: 1,
+    normalAttacksUsedThisTurn: 0,
+    pending: undefined,
+    matchResult: { status: "ongoing" },
+    publicLog: [],
   };
 
   return beginTurnDraw(dealt, seats[0]!, randomSource);
@@ -142,13 +156,23 @@ export function initializeMatch(options: InitializeMatchOptions): MatchState {
 
 export type DiscardResult =
   | { readonly ok: true; readonly state: MatchState }
-  | { readonly ok: false; readonly reason: "not_active_seat" | "card_not_in_hand" };
+  | {
+      readonly ok: false;
+      readonly reason: "not_active_seat" | "card_not_in_hand" | "match_complete" | "response_pending";
+    };
 
 // Voluntary discard by the active player (docs §3 step 4 / §5) — never
 // automatic or random; see docs §11's open discard-timeout decision for
 // why no timed/forced variant exists. Every named card id must actually be
-// in the acting seat's own current hand, or nothing is discarded.
+// in the acting seat's own current hand, or nothing is discarded. Forbidden
+// while a response/rescue is pending or the match has already ended (D1B).
 export function discardCards(state: MatchState, seat: Seat, cardIds: readonly string[]): DiscardResult {
+  if (state.matchResult.status === "complete") {
+    return { ok: false, reason: "match_complete" };
+  }
+  if (state.pending !== undefined) {
+    return { ok: false, reason: "response_pending" };
+  }
   if (seat !== state.activeSeat) {
     return { ok: false, reason: "not_active_seat" };
   }
@@ -163,19 +187,37 @@ export function discardCards(state: MatchState, seat: Seat, cardIds: readonly st
   players.set(seat, { ...player, hand: player.hand.filter((c) => !idsToDiscard.has(c.id)) });
   const discarded = player.hand.filter((c) => idsToDiscard.has(c.id));
 
-  return { ok: true, state: { ...state, players, discardPile: [...state.discardPile, ...discarded] } };
+  return {
+    ok: true,
+    state: {
+      ...state,
+      players,
+      discardPile: [...state.discardPile, ...discarded],
+      version: state.version + 1,
+    },
+  };
 }
 
 export type EndTurnResult =
   | { readonly ok: true; readonly state: MatchState }
-  | { readonly ok: false; readonly reason: "not_active_seat" | "hand_exceeds_hp_limit" };
+  | {
+      readonly ok: false;
+      readonly reason: "not_active_seat" | "hand_exceeds_hp_limit" | "match_complete" | "response_pending";
+    };
 
 // Ends `seat`'s turn: enforces the end-of-turn hand-size limit (current
 // HP, not max HP — docs §5), advances to the next living seat, and
 // performs that seat's own draw phase — one call fully transitions one
 // turn boundary. Rejects, with no mutation, if the hand limit isn't met;
-// the caller must discardCards() first.
+// the caller must discardCards() first. Forbidden while a response/rescue
+// is pending or the match has already ended (D1B).
 export function endTurn(state: MatchState, seat: Seat, randomSource?: RandomInt): EndTurnResult {
+  if (state.matchResult.status === "complete") {
+    return { ok: false, reason: "match_complete" };
+  }
+  if (state.pending !== undefined) {
+    return { ok: false, reason: "response_pending" };
+  }
   if (seat !== state.activeSeat) {
     return { ok: false, reason: "not_active_seat" };
   }
