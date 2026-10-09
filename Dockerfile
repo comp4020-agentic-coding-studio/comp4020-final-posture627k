@@ -16,6 +16,7 @@ RUN pnpm install --frozen-lockfile --prod
 
 COPY server.ts db.ts realtime.ts README.md ./
 COPY poker ./poker
+COPY card-clash ./card-clash
 
 ENV PORT=8080
 ENV DATA_DIR=/data
