@@ -1,10 +1,13 @@
-# Card Clash v2.5 — Frozen Game Rules
+# Card Clash v2.6 — Frozen Game Rules
 
-**Status:** Frozen specification for the D0 rebuild. Documentation only — no
-gameplay is implemented against this spec yet. This document is the
-authoritative rule source for all later Card Clash implementation slices;
-later slices clarify ambiguities by amending this file, not by inventing
-behavior in code.
+**Status:** Frozen specification. v2.6 adds §11 (10-second action/response
+timers) on top of the v2.5 rules below, which are otherwise unchanged. As of
+D1A, only the pure card/deck/state/turn-progression engine (§§1–2, 6–7, part
+of §3) is implemented — no combat, card effects, pending responses, rescue
+logic, HTTP, SQLite, SSE, UI, or runtime timeout scheduling exist yet. This
+document is the authoritative rule source for all Card Clash implementation
+slices; later slices clarify ambiguities by amending this file, not by
+inventing behavior in code.
 
 Card Clash is an original 2–4 player, turn-based, server-authoritative
 card combat game. It replaces the cancelled Texas Hold'em Poker Lab product
@@ -250,3 +253,100 @@ invent a timeout:
 
 No burgers, hunger, chips, betting, blinds, pots, poker hands, or any
 gambling-adjacent mechanic. No real money. No more than 4 seats.
+
+## 11. 10-second action and response timers (v2.6)
+
+### Active turn
+
+- Each active player receives 10 seconds to play a card or voluntarily end
+  their turn.
+- There is no general limit on proactively played cards; Normal Attack
+  retains its existing per-turn limit (§3).
+- A valid card play is accepted only while the server-authoritative
+  deadline is open.
+- After a played card's entire effect finishes resolving, the active
+  player receives a **new** full 10-second action period.
+- If the card triggers defensive responses or the dying/rescue procedure,
+  the active player's action clock is **suspended** until that resolution
+  completes, then a fresh 10-second period begins.
+- Invalid actions do not reset or extend the deadline.
+- If the deadline expires with no action taken, the action phase
+  automatically ends and the turn proceeds to the discard phase (§5).
+
+### Defensive responses
+
+- Each player asked to respond receives 10 seconds, starting the moment
+  that individual response becomes active (never before).
+- A valid response immediately resolves or advances the pending effect.
+- If the 10-second deadline expires, the player automatically **declines**
+  the response:
+  - An expired Dodge request means the target does not dodge (takes the
+    hit).
+  - An expired War Cry request means no Attack is provided (that player
+    loses 1 HP).
+  - An expired Arrow Volley request means no Dodge is provided (that
+    player loses 1 HP).
+  - An expired dying-rescue request means the current responder declines
+    to use Heal.
+- Responses are sequential, never simultaneous, unless a future revision
+  explicitly approves concurrent responses.
+
+### Dying rescue
+
+The approved counterclockwise rescue order (§4) is unchanged by v2.6:
+
+1. Other living players, starting from the nearest counterclockwise seat.
+2. Continue counterclockwise, skipping eliminated players.
+3. The dying player responds **last**.
+4. Every individual rescue opportunity has its own separate 10-second
+   deadline.
+5. The first successful Heal that restores the player above zero ends the
+   rescue sequence immediately.
+6. If every opportunity is declined or expires, the dying player is
+   eliminated.
+
+Enemies may rescue dying enemies (unchanged from §4).
+
+### Discard-phase timeout — OPEN DESIGN DECISION, NOT APPROVED
+
+Earlier planning suggested server-random discarding of excess cards when
+the discard-phase timer expires. **The user has not explicitly approved
+this policy.** It must not be presented as a finalized rule, and must not
+be implemented in D1A or any slice until explicitly approved here. Until
+then, the discard phase has no timeout behavior defined — a human decision
+is required before any automatic/random discard-on-timeout logic exists.
+
+### Server-authoritative implementation requirements (future slices)
+
+Documented now so later slices build the right foundation; none of this is
+implemented in D1A:
+
+- Persist absolute phase deadlines (a timestamp), never just a client-side
+  countdown value.
+- The client may display a countdown, but never decides when time has
+  expired — only the server's own re-check at point of use does.
+- Refreshing the browser must not reset any deadline.
+- A player disconnecting must not stop or pause their deadline.
+- An expired action and a valid action for the same phase must never both
+  succeed — exactly one outcome per phase transition.
+- Requests arriving at or near a deadline boundary must resolve
+  deterministically (a fixed, documented tie-break rule), not by whichever
+  request physically arrives first at the network layer.
+- Both "time expired" transitions and valid actions must be idempotent —
+  replaying the same expiry or action must never double-apply it.
+- A server restart must not erase an in-progress deadline; on restart, the
+  server must resume and reconcile any deadline that already expired while
+  it was down (applying the appropriate auto-decline/auto-end-turn
+  immediately) rather than leaving the match silently stuck.
+- SSE should broadcast phase/deadline changes (content-free, matching the
+  existing `publish`/`subscribe` convention), so clients refresh their
+  countdown display without polling.
+- **Known constraint:** this project's Fly.io deployment auto-stops the
+  machine when idle (see `fly.toml`). A stopped machine runs no code, so a
+  deadline cannot be enforced by a wall-clock timer alone while the
+  machine is stopped. The server implementation that adds real timers
+  must explicitly address this — e.g. by reconciling any
+  already-expired deadline against the clock the next time the machine
+  wakes and handles a request, rather than assuming a timer fires exactly
+  at T+10s. This is noted here as a known limitation for that later slice
+  to solve, not solved in D1A.
