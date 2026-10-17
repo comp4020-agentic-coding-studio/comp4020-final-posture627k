@@ -49,6 +49,8 @@ import {
 import type { GameMode as CardClashMode, Seat as CardClashSeatNumber } from "./card-clash/types.ts";
 import { buildCardClashTransition, parseCardClashActionEnvelope } from "./card-clash/action-http.ts";
 import { renderCardClashPage } from "./card-clash/ui.ts";
+import { logCardClashEvent } from "./card-clash/observability.ts";
+import type { CardClashActionType } from "./card-clash/action-http.ts";
 import { publishCardClashRoomEvent, subscribeToCardClashRoom } from "./card-clash/realtime.ts";
 import {
   reconcileAllCardClashMatchesOnStartup,
@@ -295,7 +297,10 @@ ${body}
 </html>
 `;
 
-type Env = { Variables: { identityId: number } };
+type Env = { Variables: {
+  identityId: number;
+  cardClashAudit: { action: CardClashActionType; versionBefore?: number; versionAfter?: number };
+} };
 
 const app = new Hono<Env>();
 
@@ -342,6 +347,40 @@ app.use("*", async (c, next) => {
 
   c.set("identityId", identityId);
   await next();
+});
+
+// Observe known Card Clash POSTs after the existing handler finishes. Only
+// server-resolved identity/room/seat and allowlisted result fields are logged.
+// The request body and private projection never enter the log record.
+app.use("/api/card-clash/*", async (c, next) => {
+  const route = c.req.method === "POST"
+    ? /^\/api\/card-clash\/rooms(?:\/([^/]+)\/(join|ready|start|actions))?$/.exec(c.req.path)
+    : null;
+  if (!route) { await next(); return; }
+  const roomBefore = route[1] ? getCardClashRoomByCode(route[1]) : undefined;
+  const matchBefore = roomBefore ? getCardClashMatchForRoom(roomBefore.id) : undefined;
+  await next();
+  try {
+    const result = await c.res.clone().json() as Record<string, unknown>;
+    const identityId = c.get("identityId");
+    const room = roomBefore ?? (typeof result.code === "string" ? getCardClashRoomByCode(result.code) : undefined);
+    const seat = room ? getCardClashSeatForIdentity(room.id, identityId) : undefined;
+    const match = room ? getCardClashMatchForRoom(room.id) : undefined;
+    const detail = c.get("cardClashAudit");
+    const operation = route[2];
+    const action = detail?.action ?? (operation === "join" ? "join_room" : operation === "ready" ? "set_ready" : operation === "start" ? "start_match" : operation === "actions" ? "action" : "create_room");
+    const duplicate = result.duplicate === true || result.alreadyJoined === true || (operation === "start" && roomBefore?.status !== "waiting");
+    logCardClashEvent({
+      actor: "player", participant: `p${identityId}`,
+      room: room?.code, roomId: room?.id, matchId: match?.id, seat: seat?.seatNumber,
+      action, status: c.res.status,
+      outcome: c.res.status >= 500 ? "error" : c.res.status >= 400 ? "rejected" : duplicate ? "duplicate" : "accepted",
+      reason: typeof result.error === "string" && /^[a-z_]{1,64}$/.test(result.error) ? result.error : null,
+      versionBefore: detail?.versionBefore ?? matchBefore?.version,
+      versionAfter: detail?.versionAfter ?? match?.version,
+      ready: typeof result.ready === "boolean" ? result.ready : null,
+    });
+  } catch { /* Observation must not alter the original HTTP response. */ }
 });
 
 // Legacy Poker Lab landing, kept reachable at a direct URL only (D5C).
@@ -1590,6 +1629,7 @@ app.post("/api/card-clash/rooms/:code/actions", async (c) => {
 
   const envelope = parseCardClashActionEnvelope(parsedBody);
   if (!envelope) return c.json({ error: "invalid_request" }, 400);
+  c.set("cardClashAudit", { action: envelope.action.type });
 
   const seatNumber = seat.seatNumber as CardClashSeatNumber;
   let match = getCardClashMatchForRoom(room.id);
@@ -1603,6 +1643,7 @@ app.post("/api/card-clash/rooms/:code/actions", async (c) => {
   // the existing stale_version check rather than racing the real timer.
   const reconciled = reconcileCardClashMatchIfOverdue(match.id, room.id, Date.now());
   match = reconciled.match;
+  c.set("cardClashAudit", { action: envelope.action.type, versionBefore: match.version });
 
   if (match.state.players.get(seatNumber)?.eliminated) {
     return c.json({ error: "eliminated" }, 403);
@@ -1642,6 +1683,7 @@ app.post("/api/card-clash/rooms/:code/actions", async (c) => {
       Date.now(),
     );
   }
+  c.set("cardClashAudit", { action: envelope.action.type, versionBefore: match.version, versionAfter: result.match.version });
   const deadline = getCardClashDeadline(result.match.id);
 
   return c.json({
@@ -1653,7 +1695,7 @@ app.post("/api/card-clash/rooms/:code/actions", async (c) => {
 app.get("/readme/", (c) => {
   const readme = readFileSync(readmePath, "utf8");
   return c.html(
-    pageShell("About", `      <h1>About</h1>\n      <pre>${escapeHtml(readme)}</pre>`),
+    pageShell("About", `      <h1>About</h1>\n      <p><a href="/">Play Card Clash</a></p>\n      <pre style="white-space:pre-wrap">${escapeHtml(readme)}</pre>`),
   );
 });
 

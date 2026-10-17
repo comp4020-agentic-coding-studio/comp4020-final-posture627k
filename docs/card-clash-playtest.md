@@ -1,42 +1,108 @@
-# Card Clash — two-human local playtest
+# Card Clash — two-person URL-only playtest
 
-Not yet performed. The automated tests drive the page in jsdom only; nobody has played this in a real browser.
+Status: **scheduled/preparing; no human results recorded yet**. Two people who
+have not developed the game have agreed to test. Prior jsdom tests, real
+Chromium automation and Docker two-identity smoke tests are engineering
+checks; they are separate from this session.
 
-## Start a local server
-```
-cd ~/comp4020-final-posture627k
-DATA_DIR=$(mktemp -d) PORT=8080 node server.ts
-```
-Use a throwaway `DATA_DIR`, never `/data`. Open `http://localhost:8080/card-clash` (or `http://<your-LAN-IP>:8080/card-clash` on a trusted network).
+## Before inviting the testers
 
-## Separate identities
-Identity is a cookie, so each player needs their own cookie jar: two different browser profiles, or one normal window plus one private window. Two tabs in the same profile are the SAME player.
+- Agree a 20–30 minute slot. Use two independent Chrome profiles/devices.
+- Use 1v1. Prefer one 1920×1080 viewport and one 390×844 viewport; record
+  actual dimensions. Two tabs sharing cookies are one identity.
+- Check the intended candidate is deployed and opens at the course URL.
+  Current local work is not automatically deployed. Follow
+  [the release checklist](card-clash-release-checklist.md) separately;
+  this protocol does not authorize a push or deployment.
+- Start observing server logs with
+  `mise exec -- flyctl logs -a comp4020-final-posture627k`.
+  Save relevant output locally, then redact/review excerpts before publishing.
+- Local rehearsal: start `node server.ts` with a new temporary DATA_DIR and
+  PORT=8080. Its terminal prints the same records. Localhost on your computer
+  is not reachable from a classmate's separate computer. A local session must
+  be recorded as local, not represented as deployed acceptance.
 
-## Create, join, start
-1. Player A: choose a mode, press **Create Room**, press **Copy Invite Link**, press **Ready**.
-2. Player B (other profile): open the invite link (`/card-clash?room=CODE`), press **Join this room**, press **Ready**. For 1v2/2v2 repeat with more profiles.
-3. Player A: **Start Game** (enabled once every seat is ready; only seat 1 can start).
+## Participant message
 
-## Using cards (on your turn, MAIN)
-- **Attack**: press Attack, then pick a target. One per turn (two for the 1v2 host).
-- **Heal (self)**: only when below max HP.
-- **Seize / Disarm**: pick a target holding at least one card. Disarm publicly reveals the discarded card type; Seize does not.
-- **War Cry / Arrow Volley / Insight**: single click, no target.
-- **Dodge** is never played proactively, only as a response.
-- **End Turn** finishes MAIN.
+Send each tester only the project URL for the independent phase:
 
-## Defence, rescue, discard
-- Attack: the target sees **Dodge / Decline**. Others see a waiting message.
-- War Cry wants an Attack, Arrow Volley wants a Dodge, each in clockwise order, or Decline.
-- At 0 HP everyone is asked (counterclockwise, the dying player last): **Heal / Decline**. The dying seat is named.
-- End Turn with more cards than HP starts DISCARD: select the excess cards, press **Discard selected**. There is no End Turn button then.
-- Every window is 10 s (shown as a countdown). Let one expire: responses auto-decline, MAIN ends, and an unfinished discard removes random excess cards.
+https://comp4020-final-posture627k.fly.dev/readme/
 
-## Confirm SSE
-Perform an action in one profile; the other must update without a reload. In devtools, Network shows one `events` request per page, no repeated polling.
+Do not send this observer guide, card instructions or an invite room in
+advance. Let one participant create a room and share the game's invite link
+with the other. The author observes; the two players operate the game.
 
-## Finish a match
-Play until a team is eliminated; the winner line appears and the controls disappear. Eliminated players stay as spectators.
+## Phase 1 — independent use (about 10 minutes)
 
-## Record
-Wrong or missing buttons, state that needs a reload, a hand visible to the wrong player, double-applied actions, confusing errors, countdown mismatches, mobile layout problems, and the browser/version.
+Do not explain the controls or take over. Observe whether they can get from
+the supplied URL to the game, create/join, Ready/start, recognize whose turn
+it is, use a card and respond. If they get stuck, record where and their
+words. An intervention ends that segment's independent evidence: record its
+exact wording and timestamp, then label subsequent use as assisted.
+
+The local candidate adds a real Play Card Clash link above the full README.
+Verify it is present on the deployed test version. Failure to find the game
+is a finding, not a reason to quietly navigate for the participant.
+
+## Phase 2 — directed follow-up (about 10 minutes)
+
+Keep these observations separate from Phase 1. If naturally available, ask
+players to try an Attack and response, End Turn and discard, and leaving a
+window unanswered for ten seconds. Check that the other screen updates
+without reload. Reload/reopen the same invite URL in the same profile and
+observe identity/state recovery. Random hands may not expose every action;
+record "not encountered" instead of inventing coverage.
+
+Ask both players: What were you trying to do? What did you expect? What was
+hard to understand? Could you tell when your action succeeded? Was there a
+moment when the other player's choice changed yours?
+
+## Reading the logs
+
+Every operational line has `event: "card_clash_action"`. A record includes
+server-derived `participant` (anonymous p-number), canonical `room`/`roomId`,
+`seat`, `action`, `outcome`, HTTP `status`, and state versions. `set_ready`
+also includes the resulting ready boolean. `duplicate` means a replay, not
+another state transition; `rejected` means the request did not succeed.
+Automatic deadlines use `actor: "system"`, the affected seat, roomId and
+matchId, and source `timer` or `reconcile`. Correlate roomId with the earlier
+room creation record. Logging code remains in the server after the session.
+No cookie, private hand, deck, card ID list or whole payload is logged.
+
+## Session record — fill only after the session
+
+- Date/time/timezone: pending
+- Candidate commit/local revision and deployed-version evidence: pending
+- Venue: local / deployed (choose the actual one)
+- Participants: A and B; consent to anonymized notes: pending
+- Browser versions, viewports and identity separation: pending
+- Observer and log capture location: pending
+
+| Time | Phase | Participant/seat | Observed action or exact quote | Matching log/version | Observation vs interpretation | Intervention / follow-up |
+|---|---|---|---|---|---|---|
+| pending | pending | pending | pending | pending | pending | pending |
+
+| Check | Observed / failed / not encountered | Evidence |
+|---|---|---|
+| Find game from URL; create/join/ready/start | pending | pending |
+| Own hand and other player's public state | pending | pending |
+| Real action and other screen updates | pending | pending |
+| Defence, discard, timeout | pending | pending |
+| Reload/return using the same identity | pending | pending |
+| Player understanding and effect of co-presence | pending | pending |
+
+Record findings separately from changes. For each fix, cite the commit and
+repeat the affected task; record whether retesting was independent or
+assisted. A human session is not a redeploy or next-day persistence test.
+
+## Crit 10 reflection
+
+After real observations, write `reflections/crit-10.md` in your own voice
+(about 150–300 words), answering:
+
+1. What was the breakthrough that moved the work forward?
+2. What did this work change about who I want to be as a software developer?
+
+Use one concrete observation/log, explain the decision it changed, and cite
+any corresponding fix/test commit. Mark outstanding retests honestly. Do not
+create a completed reflection before the session.

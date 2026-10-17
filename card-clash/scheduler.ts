@@ -20,6 +20,7 @@ import {
   type PersistedCardClashMatch,
 } from "../db.ts";
 import { publishCardClashRoomEvent } from "./realtime.ts";
+import { logCardClashEvent } from "./observability.ts";
 import type { RandomInt } from "./deck.ts";
 import type { Seat } from "./types.ts";
 
@@ -84,8 +85,12 @@ function toScheduled(
 // processCardClashTimeout treats that as a no-op and this never publishes
 // or reports "applied" for a no-op.
 export function runCardClashTimeoutCheck(matchId: number, roomId: number, expectedVersion: number, nowMs: number, randomSource?: RandomInt): boolean {
+  const previousDeadline = getCardClashDeadline(matchId);
   const result = processCardClashTimeout(matchId, expectedVersion, nowMs, randomSource);
   if (result.applied) {
+    logCardClashEvent({ actor: "system", roomId, matchId, seat: previousDeadline?.responderSeat,
+      action: "timeout", outcome: "accepted", versionBefore: expectedVersion,
+      versionAfter: result.match?.version, source: "timer" });
     publishCardClashRoomEvent(roomId, "match");
   }
   rescheduleCardClashTimer(matchId, roomId, toScheduled(result.match, result.nextDeadline), nowMs);
@@ -114,6 +119,8 @@ export function reconcileCardClashMatchIfOverdue(matchId: number, roomId: number
   let appliedAny = false;
 
   for (let step = 0; step < maxSteps && deadline !== undefined && deadline.expiresAt <= nowMs; step++) {
+    const versionBefore = match.version;
+    const responderSeat = deadline.responderSeat;
     const result = processCardClashTimeout(matchId, deadline.version, nowMs, randomSource);
     if (result.match) match = result.match;
     if (!result.applied) {
@@ -121,6 +128,9 @@ export function reconcileCardClashMatchIfOverdue(matchId: number, roomId: number
       break; // a no-op step means nothing further can change at this version — stop rather than loop forever
     }
     appliedAny = true;
+    logCardClashEvent({ actor: "system", roomId, matchId, seat: responderSeat,
+      action: "timeout", outcome: "accepted", versionBefore,
+      versionAfter: match.version, source: "reconcile" });
     deadline = result.nextDeadline && result.match ? { ...result.nextDeadline, matchId, version: result.match.version } : undefined;
   }
 

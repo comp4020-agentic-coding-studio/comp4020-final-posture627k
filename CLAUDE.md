@@ -65,6 +65,15 @@ gets marked, not just the code it produces.
 - Don't implement features listed as deferred or out of scope (see
   README.md's Crit 8 scope and non-goals) unless explicitly instructed to.
 
+## Operational evidence
+
+- Keep server-side Card Clash logs sufficient to identify the room, anonymous
+  participant/seat, action and outcome. Derive identity from server state.
+- Log successful transitions after commit, distinguish duplicate/rejected
+  requests, and record applied automatic timeouts. Log only allowlisted fields;
+  never include cookies, tokens, private hands, deck contents or whole payloads.
+- Logging must not change gameplay outcomes or claim human testing occurred.
+
 ## Usability
 
 - Maintain mobile usability alongside desktop usability — don't build
