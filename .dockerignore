@@ -11,3 +11,13 @@ dist
 mise.local.toml
 *.pem
 .claude
+
+# Exclude local databases, redundant art sources and download metadata.
+.data
+*.sqlite
+*.sqlite-*
+*.db
+card-clash/*.zip
+**/*Zone.Identifier
+card-clash/assets/environment/*.png
+p53-browser-evidence

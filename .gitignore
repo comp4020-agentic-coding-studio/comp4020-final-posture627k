@@ -24,3 +24,9 @@ mise.local.toml
 # your course API key, and this repo goes public when you ship. Your tracked
 # harness is CLAUDE.md (and any AGENTS.md), not this directory.
 .claude/
+
+# Local art sources and Windows download markers; retain originals locally.
+card-clash/*.zip
+*Zone.Identifier
+card-clash/assets/environment/*.png
+p53-browser-evidence/

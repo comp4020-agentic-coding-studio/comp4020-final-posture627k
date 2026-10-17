@@ -1,0 +1,34 @@
+{
+  "cssOnly": true,
+  "javascriptIdentical": true,
+  "fanCasesUnchanged": 84,
+  "handSizesUnchanged": true,
+  "compositionCases": 64,
+  "centralPromptCardPhaseStationIntersections": 0,
+  "minimumHelperContrastAgainstWhite": 8.150365630518428,
+  "finalUISHA256": "fdc077c4584d621005c6e59a91b5be620abcf74709709c125db780bb6b7cb72a",
+  "browser": "155.0.8059.84",
+  "layoutCases": 84,
+  "actionChecks": 40,
+  "checks": {
+    "git diff --check": "PASS",
+    "pnpm typecheck": "PASS",
+    "pnpm check": "PASS - 367 tests / 21 files"
+  },
+  "dockerSmoke": {
+    "realServer": true,
+    "room": "JKGKF84N",
+    "matchId": 1,
+    "realPointerAttackPosts": 1,
+    "versionBefore": 2,
+    "versionAfter": 4,
+    "response": "dodge",
+    "crossBrowserSSE": true,
+    "deadline10Seconds": true,
+    "privacy": true,
+    "assetRoutes": true,
+    "sqliteRestart": true,
+    "pageErrors": []
+  },
+  "visualAcceptance": "User review pending"
+}

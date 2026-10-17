@@ -1218,6 +1218,105 @@ const cardClashHome = (c: Context) => c.html(renderCardClashPage());
 app.get("/", cardClashHome);
 app.get("/card-clash", cardClashHome);
 
+// Original card-art illustrations (presentation only — see card-clash/ui.ts,
+// which references these same eight exact paths). Served through a fixed
+// allowlist of card-type -> filename, never a path taken from the request,
+// so a :type route param can only ever resolve to one of these eight known
+// files on disk — no directory traversal, no arbitrary file read. The art
+// itself carries no hidden game state (card type is already public once a
+// card is in play, and this route serves the same fixed image to everyone).
+const CARD_CLASH_ART_FILES: ReadonlyMap<string, string> = new Map([
+  ["attack", "attack.webp"],
+  ["dodge", "dodge.webp"],
+  ["heal", "heal.webp"],
+  ["seize", "seize.webp"],
+  ["disarm", "disarm.webp"],
+  ["insight", "insight.webp"],
+  ["war_cry", "war_cry.webp"],
+  ["arrow_volley", "arrow_volley.webp"],
+]);
+const cardClashArtDir = new URL("./card-clash/assets/cards/", import.meta.url);
+
+app.get("/card-clash/art/:type", (c) => {
+  const filename = CARD_CLASH_ART_FILES.get(c.req.param("type"));
+  if (!filename) return c.notFound();
+  const bytes = readFileSync(new URL(filename, cardClashArtDir));
+  return c.body(bytes, 200, {
+    "content-type": "image/webp",
+    "cache-control": "public, max-age=31536000, immutable",
+  });
+});
+
+// Painted environment backdrops (castle hall for the lobby, war table for the
+// battle). Same allowlist approach as the card art; cached for a day with
+// revalidation rather than "immutable", so a revised painting reaches players.
+const CARD_CLASH_ENVIRONMENT_FILES: ReadonlyMap<string, string> = new Map([
+  ["castle-hall", "castle-hall-background.webp"],
+  ["war-table", "knights-war-table.webp"],
+]);
+const cardClashEnvironmentDir = new URL("./card-clash/assets/environment/", import.meta.url);
+
+app.get("/card-clash/environment/:name", (c) => {
+  const filename = CARD_CLASH_ENVIRONMENT_FILES.get(c.req.param("name"));
+  if (!filename) return c.notFound();
+  const bytes = readFileSync(new URL(filename, cardClashEnvironmentDir));
+  return c.body(bytes, 200, {
+    "content-type": "image/webp",
+    "cache-control": "public, max-age=86400, must-revalidate",
+  });
+});
+
+// Opponent knight character art (P2: the opponent stage) and the matching
+// first-person hand/arm poses (P3). Both painted sets ship only "red" and
+// "blue" team variants plus a fixed set of poses, so these are two more
+// fixed allowlists, same shape as the card/environment routes above — the
+// route params select a filename, never a path.
+const CARD_CLASH_KNIGHT_POSES = new Set(["idle", "attack", "block", "hit", "kneel"]);
+const CARD_CLASH_KNIGHT_TEAMS = new Set(["red", "blue"]);
+const cardClashCharactersDir = new URL("./card-clash/assets/characters/", import.meta.url);
+
+app.get("/card-clash/knight/:team/:pose", (c) => {
+  const team = c.req.param("team");
+  const pose = c.req.param("pose");
+  if (!CARD_CLASH_KNIGHT_TEAMS.has(team) || !CARD_CLASH_KNIGHT_POSES.has(pose)) return c.notFound();
+  const bytes = readFileSync(new URL(`${team}/${pose}.webp`, cardClashCharactersDir));
+  return c.body(bytes, 200, {
+    "content-type": "image/webp",
+    "cache-control": "public, max-age=31536000, immutable",
+  });
+});
+
+// Supplied transparent gauntlets use new PNG URLs so immutable cached legacy
+// poses cannot mask the repair. Legacy pose URLs stay available for compatibility.
+const CARD_CLASH_HAND_POSES = new Set(["gauntlet_left", "gauntlet_right", "grip_left", "grip_right", "hold_cards", "play_card", "attack", "defend", "hit"]);
+const cardClashHandsDir = new URL("./card-clash/assets/first-person/", import.meta.url);
+
+app.get("/card-clash/hands/:pose", (c) => {
+  const pose = c.req.param("pose");
+  if (!CARD_CLASH_HAND_POSES.has(pose)) return c.notFound();
+  const ext = pose.startsWith("gauntlet_") ? "png" : "webp";
+  const bytes = readFileSync(new URL(`${pose}.${ext}`, cardClashHandsDir));
+  return c.body(bytes, 200, {
+    "content-type": ext === "png" ? "image/png" : "image/webp",
+    "cache-control": "public, max-age=31536000, immutable",
+  });
+});
+
+// Combat VFX stingers (P4: event-driven feedback) — short-lived overlays
+// triggered only by confirmed server events, never fabricated client-side.
+const CARD_CLASH_FX_NAMES = new Set(["sword_slash", "shield_block", "healing", "card_cast", "physical_impact", "victory"]);
+const cardClashFxDir = new URL("./card-clash/assets/effects/", import.meta.url);
+
+app.get("/card-clash/fx/:name", (c) => {
+  const name = c.req.param("name");
+  if (!CARD_CLASH_FX_NAMES.has(name)) return c.notFound();
+  const bytes = readFileSync(new URL(`${name}.webp`, cardClashFxDir));
+  return c.body(bytes, 200, {
+    "content-type": "image/webp",
+    "cache-control": "public, max-age=31536000, immutable",
+  });
+});
+
 app.post("/api/card-clash/rooms", async (c) => {
   const identityId = c.get("identityId");
   const body = await readJsonBody(c);
