@@ -549,3 +549,28 @@ it("the public action-result JSON never contains an opponent's private hand or t
   expect(body.drawPileCount).toBeTypeOf("number");
   expect(body.players.find((p) => p.seat === other)!.hand).toBeUndefined();
 });
+
+
+it("playtest: an over-discard HTTP request cannot mutate cards, version or the original deadline", async () => {
+  const { code, jars } = await setUpStartedMatch("1v1");
+  forceHand(code, 1, ["attack", "dodge", "heal", "insight", "seize"]);
+  forceHp(code, 1, 2);
+  const path = `/api/card-clash/rooms/${code}/actions`;
+  expect((await postJson(jars[1], path, { type: "end_turn", expectedVersion: currentVersion(code), requestId: freshRequestId() })).status).toBe(200);
+  const room = db.getCardClashRoomByCode(code)!;
+  const before = db.getCardClashMatchForRoom(room.id)!;
+  const deadline = db.getCardClashDeadline(before.id);
+  const ids = before.state.players.get(1)!.hand.map((card) => card.id);
+  for (const amount of [4, 5]) {
+    const rejected = await postJson(jars[1], path, { type: "discard_cards", cardIds: ids.slice(0, amount), expectedVersion: before.version, requestId: freshRequestId() });
+    expect(rejected.status).toBe(409);
+    expect(await rejected.json()).toMatchObject({ error: "transition_rejected", detail: "discard_exceeds_excess" });
+    expect(db.getCardClashMatchForRoom(room.id)!.state).toEqual(before.state);
+    expect(db.getCardClashMatchForRoom(room.id)!.version).toBe(before.version);
+    expect(db.getCardClashDeadline(before.id)).toEqual(deadline);
+  }
+  expect((await postJson(jars[1], path, { type: "discard_cards", cardIds: ids.slice(0, 3), expectedVersion: before.version, requestId: freshRequestId() })).status).toBe(200);
+  const after = db.getCardClashMatchForRoom(room.id)!;
+  expect(after.state.players.get(1)!.hand).toHaveLength(2);
+  expect(after.state.activeSeat).toBe(2);
+});

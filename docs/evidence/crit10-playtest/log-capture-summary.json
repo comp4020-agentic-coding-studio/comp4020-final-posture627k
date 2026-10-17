@@ -1,0 +1,14 @@
+{
+  "capturedAtUtc": "2026-10-17T07:35:58.620395+00:00",
+  "source": "flyctl logs --no-tail --json (recent buffer only)",
+  "requestedRoom": "EVM43AVT",
+  "retainedActionRecordsAcrossApp": 100,
+  "matchingRoomIds": [],
+  "matchingRecords": 0,
+  "firstMatchingEventUtc": null,
+  "lastMatchingEventUtc": null,
+  "anonymousParticipants": [],
+  "actions": [],
+  "rawPlatformLogsSaved": false,
+  "boundary": "No retained match is not evidence that the session did not occur. Matching records need not cover the full session; browser-only failed gestures generate no accepted-action log."
+}

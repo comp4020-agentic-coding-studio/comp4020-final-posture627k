@@ -289,3 +289,36 @@ it("shows the winner, an eliminated player is a read-only spectator, and opponen
   await waitFor(() => (p1.doc.getElementById("winner")?.textContent ?? "").includes("Team A"), "winner");
   expect(p1.doc.querySelectorAll("#controls button")).toHaveLength(0);
 });
+
+
+it("playtest: discard selection stops at the excess and a selected card remains available to deselect", async () => {
+  const { code, jars, matchId } = await setup("1v1");
+  force(matchId, (s) => withHand(s, 1, ["heal", "heal", "attack", "dodge", "insight"], { hp: 2 }));
+  const p = await open(jars[1]!, code);
+  await click(p, "act-end_turn");
+  await waitFor(() => !!q(p, "act-discard_cards"), "discard controls");
+  const ids = cur(matchId).players.get(1)!.hand.map((card) => card.id);
+  for (const id of ids.slice(0, 3)) await click(p, "card-" + id);
+  expect(q(p, "card-" + ids[3])!.disabled).toBe(true);
+  expect(q(p, "card-" + ids[0])!.disabled).toBe(false);
+  await click(p, "card-" + ids[0]);
+  expect(q(p, "card-" + ids[3])!.disabled).toBe(false);
+  await click(p, "card-" + ids[3]);
+  await click(p, "act-discard_cards");
+  await waitFor(() => cur(matchId).activeSeat === 2, "turn advanced");
+  expect(cur(matchId).players.get(1)!.hand).toHaveLength(2);
+  p.dom.window.close();
+});
+
+it("playtest: lobby navigation preserves a return URL without issuing a gameplay action", async () => {
+  const { code, jars, matchId } = await setup("1v1");
+  const p = await open(jars[1]!, code);
+  const before = cur(matchId);
+  const link = p.doc.getElementById("return-lobby") as HTMLAnchorElement;
+  expect(link).not.toBeNull();
+  expect(new URL(link.href).searchParams.get("resume")).toBe(code);
+  expect(link.title).toContain("continues");
+  expect(p.posts).toHaveLength(0);
+  expect(cur(matchId)).toEqual(before);
+  p.dom.window.close();
+});

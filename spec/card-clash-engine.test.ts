@@ -221,3 +221,23 @@ it("deck replenishment never recycles the discard pile, keeps ids unique, and co
   expect(afterBoundary.discardPile.map((c) => c.id)).toContain(discardedId);
   expect(afterBoundary.drawPile.map((c) => c.id)).not.toContain(discardedId);
 });
+
+
+it("playtest: five cards at two HP may discard three, never four or five, including after a partial discard", () => {
+  const original = initializeMatch({ mode: "1v1", randomSource: counterRandom() });
+  const player = original.players.get(1)!;
+  const state = { ...original, turnPhase: "discard" as const, players: new Map(original.players).set(1, { ...player, hp: 2, hand: player.hand.slice(0, 5) }) };
+  const ids = state.players.get(1)!.hand.map((card) => card.id);
+  for (const amount of [4, 5]) {
+    expect(discardCards(state, 1, ids.slice(0, amount))).toEqual({ ok: false, reason: "discard_exceeds_excess" });
+    expect(state.players.get(1)!.hand).toHaveLength(5);
+  }
+  const exact = discardCards(state, 1, ids.slice(0, 3));
+  expect(exact.ok && exact.state.players.get(1)!.hand.length).toBe(2);
+  const partial = discardCards(state, 1, ids.slice(0, 1));
+  expect(partial.ok).toBe(true);
+  if (!partial.ok) return;
+  expect(discardCards(partial.state, 1, ids.slice(1, 4))).toEqual({ ok: false, reason: "discard_exceeds_excess" });
+  const remaining = discardCards(partial.state, 1, ids.slice(1, 3));
+  expect(remaining.ok && remaining.state.players.get(1)!.hand.length).toBe(2);
+});

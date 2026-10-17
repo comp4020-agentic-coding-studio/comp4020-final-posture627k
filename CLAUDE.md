@@ -80,6 +80,13 @@ gets marked, not just the code it produces.
   interactions that only work with a mouse and keyboard unless there's a
   stated reason a given surface is desktop-only.
 
+- Preserve a reachable central-table drop surface for direct cards, with
+  single-click and keyboard alternatives; cancelled drags must not consume
+  the next deliberate action. Keep decorative assets non-interactive.
+- Never discard more than the remaining excess over current HP. Enforce
+  this on the server as well as the UI; rejected requests change neither
+  cards nor version/deadline. Navigation must not reset a match or identity.
+
 ## What this file does not do
 
 This file does not invent file paths, APIs, database schemas, field names,

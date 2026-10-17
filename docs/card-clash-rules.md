@@ -120,6 +120,11 @@ never itself interruptible).
   see §1.
 - End-of-turn hand limit equals the active player's **current** HP, not
   their maximum HP.
+- Manual discarding may remove no more than the remaining excess above
+  that limit: 5 cards at 2 HP permits at most 3 discards, never 4 or 5.
+  Partial submissions remain allowed; reaching the limit ends DISCARD,
+  and partial discards do not restart its existing deadline. This clarifies
+  the intended boundary reported in the 17 October 2026 playtest.
 - Damage taken on another player's turn does **not** immediately force a
   discard; the limit is only enforced at the end of the damaged player's
   own next turn (step 4 of §3).

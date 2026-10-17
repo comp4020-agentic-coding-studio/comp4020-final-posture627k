@@ -83,17 +83,18 @@ async function run() {
           const hand=document.querySelector('#hand');
           return{viewport:{width:innerWidth,height:innerHeight},scene:rect(document.querySelector('.table-art')),hall:getComputedStyle(document.querySelector('.hall')).display,
             dockBackground:getComputedStyle(document.querySelector('.hand-dock')).backgroundColor,
-            fan:rect(hand),grips:[...hand.querySelectorAll('.grip-hand')].map(e=>({src:e.getAttribute('src'),pointer:getComputedStyle(e).pointerEvents})),
+            hud:rect(document.querySelector('.self-hud')),fan:rect(hand),grips:[...hand.querySelectorAll('.grip-hand')].map(e=>({src:e.getAttribute('src'),pointer:getComputedStyle(e).pointerEvents})),
             cards:[...hand.querySelectorAll('.card')].map(e=>({...rect(e),selected:e.matches('.selected,.targeting'),widthBeforeTransform:e.offsetWidth,position:e.style.cssText})),
-            controls:[...document.querySelectorAll('.zone button,.mini-controls button,.far .seat,#countdown')].filter(e=>e.checkVisibility()).map(e=>({id:e.id||e.getAttribute('data-seat')||'station',button:e.tagName==='BUTTON',disabled:!!e.disabled,reachable:e.contains(document.elementFromPoint(e.getBoundingClientRect().x+e.getBoundingClientRect().width/2,e.getBoundingClientRect().y+e.getBoundingClientRect().height/2)),...rect(e)})),
+            controls:[...document.querySelectorAll('.zone button,.mini-controls button,.topbar a,.far .seat,#countdown')].filter(e=>e.checkVisibility()).map(e=>({id:e.id||e.getAttribute('data-seat')||'station',button:e.matches('button,a'),disabled:!!e.disabled,reachable:e.contains(document.elementFromPoint(e.getBoundingClientRect().x+e.getBoundingClientRect().width/2,e.getBoundingClientRect().y+e.getBoundingClientRect().height/2)),...rect(e)})),
             handCount:document.querySelectorAll('#hand').length,scrollWidth:document.documentElement.scrollWidth};
         });
         assert.equal(m.handCount,1);assert.equal(m.grips.length,2);assert(m.grips.every(g=>g.src.includes('/gauntlet_')&&g.pointer==='none'));
         assert.equal(m.hall,'none');assert.equal(m.dockBackground,'rgba(0, 0, 0, 0)');assert(m.scrollWidth<=width+1);
         assert(m.scene.x<=1&&m.scene.y<=1&&m.scene.right>=width-1&&m.scene.bottom>=height-1,'Scene must cover viewport');
         for(const r of [...m.cards,...m.controls])assert(r.x>=-1&&r.y>=-1&&r.right<=width+1&&r.bottom<=height+1,`${width} ${name}: clipped ${JSON.stringify(r)}`);
-        for(const control of m.controls)if(control.button&&!control.disabled)assert(control.reachable,`${width} ${name}: button obscured: ${control.id}`);
+        for(const control of m.controls)if(control.button&&!control.disabled&&!control.reachable){await page.screenshot({path:path.join(out,"failure.png")});const blocker=await page.evaluate(r=>document.elementFromPoint(r.x+r.width/2,r.y+r.height/2)?.outerHTML.slice(0,400),control);assert.fail(`${width} ${name}: button obscured: ${JSON.stringify(control)} by ${blocker}`);}
         assert(m.cards.every(c=>c.widthBeforeTransform>=80),'Common hands must remain recognisable');
+        if(width>=981&&['normal4','normal5','normal6'].includes(name))assert(m.hud.right<=Math.min(...m.cards.map(c=>c.x)),`${width} ${name}: HUD overlaps fan`);
         if(name==='normal6')resting=m.cards.map(c=>c.position);
         if(['waiting','attack','attack-seat2','war-cry','volley','rescue','rescue-seat2'].includes(name))assert.deepEqual(m.cards.map(c=>c.position),resting,'Phase must not change fan geometry');
         for(let i=0;i<n;i++)await visiblePoint(page.locator('#hand .card').nth(i));
@@ -137,6 +138,63 @@ async function run() {
         assert.equal(posts.length,0);assert.equal(await page.locator('.drag-ghost').count(),0);assert.equal(await page.locator('body[data-drag]').count(),0);
         p=await visiblePoint(c);await page.mouse.click(p.x,p.y);await page.waitForSelector('.card.targeting');assert.equal(posts.length,0);
       }
+
+      // Playtest regressions: direct cards accept the painted central table,
+      // outside the narrow prompt. Each real gesture must submit exactly once.
+      for(const type of ['heal','insight','war_cry','arrow_volley']){
+        for(const gesture of ['drop','click','cancel-then-click']){
+          await open('1v1',1,6,'main');
+          f.state.players[0].hand[2].type=type;
+          await page.evaluate(()=>window.__cardClash.refresh(true));
+          c=page.locator('#cardplay-qa2').locator('..');
+          await page.mouse.move(2,2);await page.waitForTimeout(190);
+          if(gesture!=='click'){
+            p=await visiblePoint(c);await page.mouse.move(p.x,p.y);await page.waitForTimeout(190);p=await visiblePoint(c);
+            await page.mouse.move(p.x,p.y);await page.mouse.down();
+            if(gesture==='drop'){
+              const point=await page.evaluate(()=>{
+                const r=document.querySelector('.table-drop-area').getBoundingClientRect();
+                for(let y=Math.max(2,r.top+8);y<Math.min(innerHeight-2,r.bottom-8);y+=10)
+                  for(let x=Math.max(2,r.left+8);x<Math.min(innerWidth-2,r.right-8);x+=10){
+                    const hit=document.elementFromPoint(x,y);
+                    if(hit?.closest('.stage')&&!hit.closest('.zone,.far,button,a'))return{x,y};
+                  }
+                throw Error('No reachable painted-table drop surface');
+              });
+              await page.mouse.move(point.x,point.y,{steps:10});await page.waitForTimeout(40);
+              assert.equal(await page.locator('.table-drop-area.zone-active').count(),1,`${width}: ${type} table not highlighted`);
+              await page.mouse.up();
+            }else{
+              await page.mouse.move(12,45,{steps:8});await page.mouse.up();await page.waitForTimeout(250);
+              assert.equal(posts.length,0);await clickCard(c);
+            }
+          }else await clickCard(c);
+          await page.waitForTimeout(100);
+          assert.equal(posts.length,1,`${width}: ${type} ${gesture} must need one deliberate action`);
+          assert.equal(posts[0].type,'play_'+type);
+        }
+      }
+      await open('1v1',1,5,'discard');
+      for(let i=0;i<3;i++)await clickCard(page.locator('#card-qa'+i).locator('..'));
+      assert.equal(await page.locator('#card-qa3').isDisabled(),true);
+      assert.equal(await page.locator('#card-qa0').isDisabled(),false);
+      await clickCard(page.locator('#card-qa0').locator('..'));
+      assert.equal(await page.locator('#card-qa3').isDisabled(),false);
+      await clickCard(page.locator('#card-qa3').locator('..'));
+      await page.locator('#act-discard_cards').click();await page.waitForTimeout(100);
+      assert.equal(posts.length,1);assert.equal(posts[0].cardIds.length,3);
+
+      for(const complete of [false,true]){
+        await open('1v1',1,6,'main');
+        if(complete){f.state.matchResult={status:'complete',winningTeam:'A'};await page.evaluate(()=>window.__cardClash.refresh(true));}
+        await page.locator('#return-lobby').click();await page.waitForSelector('#create');
+        assert.equal(posts.length,0,'Lobby navigation must not mutate gameplay');
+        assert.equal(new URL(await page.locator('#resume-room').getAttribute('href'),base).searchParams.get('room'),'P53AUDIT');
+        await page.locator('#resume-room').click();await page.waitForSelector('#hand');
+        if(complete)assert.equal(await page.locator('#winner').count(),1);
+      }
+      console.log(`Direct-card, discard-cap and lobby regressions passed at ${width}x${height}`);
+
       // Real keyboard alternative and live resize roundtrip (no compounding shrink).
       await open('1v1',1,6,'main');await page.locator('#hand .card-attack button').focus();await page.keyboard.press('Enter');await page.waitForSelector('.card.targeting');
       await page.locator('#target-2').focus();await page.keyboard.press('Enter');await page.waitForTimeout(100);assert.equal(posts.length,1);

@@ -161,7 +161,7 @@ export type DiscardResult =
   | { readonly ok: true; readonly state: MatchState }
   | {
       readonly ok: false;
-      readonly reason: "not_active_seat" | "card_not_in_hand" | "match_complete" | "response_pending";
+      readonly reason: "not_active_seat" | "card_not_in_hand" | "match_complete" | "response_pending" | "discard_exceeds_excess";
     };
 
 // Voluntary discard by the active player (docs §3 step 4 / §5) — never
@@ -186,6 +186,10 @@ export function discardCards(state: MatchState, seat: Seat, cardIds: readonly st
   }
 
   const idsToDiscard = new Set(cardIds);
+  // A manual request may remove only the remaining excess, including in
+  // MAIN. Partial DISCARD submissions keep their original deadline.
+  const excess = Math.max(0, player.hand.length - Math.max(0, player.hp));
+  if (idsToDiscard.size > excess) return { ok: false, reason: "discard_exceeds_excess" };
   const players = new Map(state.players);
   players.set(seat, { ...player, hand: player.hand.filter((c) => !idsToDiscard.has(c.id)) });
   const discarded = player.hand.filter((c) => idsToDiscard.has(c.id));

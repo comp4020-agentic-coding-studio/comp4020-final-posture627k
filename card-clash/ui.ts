@@ -185,6 +185,7 @@ body.in-battle .error{position:fixed;z-index:20;left:50%;top:34px;transform:tran
 .topbar .crest{width:22px;height:25px}
 .topbar strong{font:700 1rem var(--serif);color:#f3d690}
 .topbar .room-code{font-size:.82rem}
+.topbar .lobby-link{font-size:.75rem;padding:5px 9px;white-space:nowrap;min-height:30px}
 .topbar .mode-pill{margin-left:auto;padding:2px 10px;border-radius:99px;background:rgba(0,0,0,.55);color:var(--brass-hi);font-weight:700;letter-spacing:.04em}
 
 /* Far rim: opponent stations stand on the painted table's far edge. */
@@ -248,6 +249,9 @@ body[data-drag] .far .seat.drop-ok::after{content:"Drop to target";position:abso
    Cover may crop the scene's edges; it never distorts or adds an outer stage. */
 .stage-wrap{position:absolute;inset:0;z-index:1;overflow:hidden}
 .stage{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:100%;aspect-ratio:1672/941;color:var(--ink);container-type:inline-size}
+.table-drop-area{position:absolute;left:24%;right:24%;top:40%;bottom:20%;border-radius:32px;pointer-events:none;z-index:1}
+.table-drop-area.drop-ok{outline:2px dashed rgba(255,227,154,.8);background:rgba(255,224,150,.08)}
+.table-drop-area.zone-active{outline-style:solid;background:rgba(255,224,150,.18)}
 .table-art{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;user-select:none;-webkit-user-drag:none}
 .stage > .centerpiece{position:absolute;z-index:2;left:51%;top:44%;transform:translate(-50%,-50%)}
 .stage > .chronicle{position:absolute;z-index:2;left:66%;top:37%;width:18%;align-self:auto}
@@ -344,7 +348,7 @@ body[data-drag] .zone.zone-active{background:#fff2c8;box-shadow:inset 0 0 0 3px 
 /* Side widgets follow the measured fan, above the forearms. Portrait keeps
    its functional bottom row; the painted battlefield stays full-screen. */
 .hand-dock{position:absolute;inset:0;z-index:6;pointer-events:none}
-.self-hud{position:absolute;z-index:40;left:clamp(12px,calc(var(--fan-left,25vw) - 184px),calc(100% - 182px));top:var(--side-y,76%);transform:translateY(-50%);pointer-events:auto;display:flex;flex-direction:column;gap:5px;width:170px}
+.self-hud{position:absolute;z-index:40;left:clamp(12px,calc(var(--fan-left,25vw) - 204px),calc(100% - 202px));top:var(--side-y,76%);transform:translateY(-50%);pointer-events:auto;display:flex;flex-direction:column;gap:6px;width:190px}
 .mini-controls{position:absolute;z-index:40;left:clamp(12px,calc(var(--fan-right,75vw) + 14px),calc(100% - 212px));top:var(--side-y,76%);transform:translateY(-50%);pointer-events:auto;display:flex;flex-direction:column;align-items:flex-end;gap:4px;width:200px;max-height:min(25dvh,150px);overflow-y:auto;scrollbar-width:thin;overscroll-behavior:contain}
 .fan-dock{position:absolute;left:50%;bottom:clamp(0px,calc(20dvh - 128px),80px);transform:translateX(-50%);width:calc(100% - 430px);max-width:960px;pointer-events:none}
 
@@ -355,19 +359,21 @@ body[data-drag] .zone.zone-active{background:#fff2c8;box-shadow:inset 0 0 0 3px 
    stations, shrunk to a single slim strip (crest+name+team on one line,
    a thin HP bar + hand-count badge on the next, tags last) instead of a
    scaled-down copy of the big card — only font sizes/paddings change. */
-.seat.compact{width:100%;max-width:184px}
+.seat.compact{width:100%;max-width:196px}
+.hand-total{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:34px;color:var(--ink);font-size:.75rem;line-height:1.2}
+.hand-total b{font-size:1rem;color:var(--oak-deep)}
 .seat.compact .seat-crown{padding:3px 7px 3px 6px}
 .seat.compact .seat-crown .screst{width:15px;height:18px}
-.seat.compact .seat-crown .sname{font-size:.82rem}
-.seat.compact .seat-crown .team-tag{font-size:.6rem;padding:0 5px}
-.seat.compact .seat-mid{padding:4px 7px 2px;gap:6px}
-.seat.compact .hp-label{font-size:.62rem}
-.seat.compact .hp-label b{font-size:.78rem}
-.seat.compact .hp-track{height:7px;margin-top:1px}
+.seat.compact .seat-crown .sname{font-size:.94rem}
+.seat.compact .seat-crown .team-tag{font-size:.72rem;padding:1px 5px}
+.seat.compact .seat-mid{padding:6px 8px 4px;gap:8px}
+.seat.compact .hp-label{font-size:.78rem;color:var(--oak-dark)}
+.seat.compact .hp-label b{font-size:.96rem}
+.seat.compact .hp-track{height:9px;margin-top:2px}
 .seat.compact .hand-shield{width:24px;height:28px}
 .seat.compact .hand-shield b{font-size:.74rem}
 .seat.compact .seat-tags{padding:1px 7px 4px;min-height:0;gap:3px}
-.seat.compact .tag{font-size:.6rem;padding:0 5px}
+.seat.compact .tag{font-size:.7rem;padding:1px 5px}
 /* Measured, rotated card bounds determine the fan, independent of phase/UI copy. */
 .hand{position:relative;width:var(--hand-stage-w,100%);max-width:100%;height:var(--hand-stage-h,220px);margin:0 auto;overflow:visible;pointer-events:none}
 .hand > .card{pointer-events:auto}
@@ -496,6 +502,11 @@ button[aria-pressed=true]{outline:none}
 @media (max-width:980px){
   .entry-grid{grid-template-columns:1fr;max-width:620px;margin:0 auto}
   .fan-dock{width:calc(100% - 300px)}
+  .seat.compact .seat-crown .sname{font-size:.82rem}
+  .seat.compact .seat-crown .team-tag{font-size:.6rem;padding:0 4px}
+  .seat.compact .seat-mid{padding:4px 6px;gap:5px}
+  .seat.compact .hp-label,.hand-total{font-size:.7rem}
+  .seat.compact .hp-label b,.hand-total b{font-size:.85rem}
   .self-hud{width:130px;left:clamp(10px,calc(var(--fan-left,25vw) - 144px),calc(100% - 140px))}
   .mini-controls{width:140px;left:clamp(10px,calc(var(--fan-right,75vw) + 14px),calc(100% - 150px))}
   .hand-hint{display:none}
@@ -643,6 +654,7 @@ button[aria-pressed=true]{outline:none}
   .grip-hand{z-index:35;transform:none}
   .self-hud{width:124px;left:68px;top:auto;bottom:12px;transform:none}
   .mini-controls{width:120px;left:auto;right:72px;top:auto;bottom:12px;transform:none;max-height:84px}
+  .mini-controls:has(.targeting){max-height:112px}
   .mini-controls .ctl-note{font-size:.64rem;line-height:1.25}
   .hand-hint{display:none}
   .ctl-note{font-size:.7rem}
@@ -777,6 +789,7 @@ const SCRIPT = `
 
   var root = document.getElementById("app");
   var code = new URLSearchParams(location.search).get("room");
+  var resumeCode = new URLSearchParams(location.search).get("resume");
   var room = null, match = null, es = null, esCode = null;
   var busy = false, targeting = null, selected = {}, chosenMode = "1v1";
   var message = "", deadlineTimer = null, deadlineRefetch = null, requestSeq = 0;
@@ -1051,9 +1064,18 @@ const SCRIPT = `
     var hit = document.elementFromPoint(x, y);
 
     var dropEl = hit && hit.closest ? hit.closest("[data-drop]") : null;
-    if (!dropEl) return null;
-    var types = (dropEl.getAttribute("data-drop") || "").split(" ").filter(Boolean);
-    return types.indexOf(pointerDrag.type) !== -1 ? dropEl : null;
+    if (dropEl) {
+      var types = (dropEl.getAttribute("data-drop") || "").split(" ").filter(Boolean);
+      return types.indexOf(pointerDrag.type) !== -1 ? dropEl : null;
+    }
+    // The painted central table is a real drop surface, not just its prompt.
+    // Hit-test through its decorative layer, but never through cards, HUD,
+    // navigation or an opponent station. Those retain their own input rules.
+    var area = document.querySelector(".table-drop-area");
+    if (!area || !hit || !hit.closest(".stage") || hit.closest("button,a,.far")) return null;
+    var rect = area.getBoundingClientRect();
+    var allowed = (area.getAttribute("data-drop") || "").split(" ");
+    return x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom && allowed.indexOf(pointerDrag.type) !== -1 ? area : null;
   }
 
   function updateHoverTarget(target) {
@@ -1197,11 +1219,12 @@ const SCRIPT = `
     var info = CARD_INFO[c.type] || { name: c.type, effect: "" };
     if (inDiscard) {
       var isSel = !!selected[c.id];
+      var atLimit = Object.keys(selected).filter(function (id) { return selected[id]; }).length >= Math.max(0, me.hand.length - me.hp);
       var b = el("button", {
-        id: "card-" + c.id, "aria-pressed": isSel ? "true" : "false", disabled: busy,
+        id: "card-" + c.id, "aria-pressed": isSel ? "true" : "false", disabled: busy || (!isSel && atLimit),
         "aria-label": info.name + (isSel ? " — selected for discard" : " — select to discard"),
-        onclick: function () { selected[c.id] = !selected[c.id]; render(); },
-      }, cardFace(c.type, isSel ? "Discarding" : "Tap to discard"));
+        onclick: function () { if (busy || (!isSel && atLimit)) return; selected[c.id] = !selected[c.id]; render(); },
+      }, cardFace(c.type, isSel ? "Discarding" : atLimit ? "Limit reached" : "Tap to discard"));
       return cardShell(c.type, isSel ? "selected" : "discardable", b);
     }
     var action = playable ? actionForCardType(me, c.type) : null;
@@ -1261,9 +1284,9 @@ const SCRIPT = `
       var excess = hand.length - me.hp;
       var ids = Object.keys(selected).filter(function (k) { return selected[k]; });
       return [group("discard", [
-        el("p", { class: "ctl-note", id: "discard-note" }, ["DISCARD: choose " + Math.max(0, excess) + " card(s) to discard (hand limit = HP " + me.hp + ")."]),
+        el("p", { class: "ctl-note", id: "discard-note" }, ["DISCARD: choose " + Math.max(0, excess) + " (HP " + me.hp + ")."]),
         el("div", { class: "ctl-row" }, [
-          btn("discard_cards", "Discard selected (" + ids.length + ")", function () { send("discard_cards", { cardIds: ids }); }, ids.length === 0, "primary small"),
+          btn("discard_cards", "Discard (" + ids.length + "/" + Math.max(0, excess) + ")", function () { send("discard_cards", { cardIds: ids }); }, ids.length === 0 || ids.length > excess, "primary small"),
         ]),
       ])];
     }
@@ -1271,14 +1294,14 @@ const SCRIPT = `
     var living = others(me);
     if (targeting) {
       var pool = living.filter(function (p) { return targeting === "play_attack" || p.handSize > 0; });
-      var row = [el("span", { class: "ctl-label" }, ["Target"])];
+      var row = [];
       pool.forEach(function (p) {
         row.push(el("button", { id: "target-" + p.seat, class: "btn gold small", disabled: busy, onclick: function () { var t = targeting; send(t, { targetSeat: p.seat }); } }, ["Seat " + p.seat + " (Team " + p.team + ")"]));
       });
       if (pool.length === 0) row.push(el("span", { class: "ctl-note muted" }, ["No valid targets."]));
       row.push(el("button", { id: "cancel-target", class: "btn ghost small", onclick: function () { targeting = null; render(); } }, ["Cancel"]));
       return [group("targeting", [
-        el("p", { class: "ctl-note" }, ["Choose a target for " + targeting.replace("play_", "").replace(/_/g, " ") + " — tap a seat below, or drag the card onto a station."]),
+        el("p", { class: "ctl-note" }, ["Choose a highlighted seat."]),
         el("div", { class: "ctl-row" }, row),
       ])];
     }
@@ -1331,6 +1354,7 @@ const SCRIPT = `
         el("p", { class: "subtitle" }, ["Gather your house, draw your hand and outwit rival knights across the table — every move must be made within ten seconds."]),
       ]),
       error(),
+      resumeCode ? el("p", { class: "subtitle" }, [el("a", { id: "resume-room", class: "btn gold small", href: "/card-clash?room=" + encodeURIComponent(resumeCode) }, ["Return to room " + resumeCode]), " Your existing match keeps its state; active timers continue."]) : "",
       el("div", { class: "entry-grid" }, [
         el("section", { class: "plaque entry", "aria-labelledby": "create-h" }, [
           el("h2", { id: "create-h" }, ["Muster a Company"]),
@@ -1585,7 +1609,7 @@ const SCRIPT = `
           el("div", { class: "hp-label" }, [el("span", null, ["HP"]), el("b", null, [p.hp + "/" + p.maxHp])]),
           el("div", { class: "hp-track", role: "img", "aria-label": "HP " + p.hp + " of " + p.maxHp }, [el("div", { class: "hp-fill", style: "width:" + pct + "%" }, []), el("span", { class: "hp-pips" }, pips)]),
         ]),
-        el("span", { class: "hand-shield", title: "Cards in hand" }, [shieldBadge(), el("b", null, [String(p.handSize)]), el("span", { class: "sr-only" }, ["Cards: " + p.handSize + (p.eliminated ? " (eliminated)" : "")])]),
+        compact ? el("span", { class: "hand-total", "aria-label": "Cards in hand: " + p.handSize }, ["Cards", el("b", null, [String(p.handSize)])]) : el("span", { class: "hand-shield", title: "Cards in hand" }, [shieldBadge(), el("b", null, [String(p.handSize)]), el("span", { class: "sr-only" }, ["Cards: " + p.handSize + (p.eliminated ? " (eliminated)" : "")])]),
       ]),
       el("div", { class: "seat-tags" }, [
         p.seat === 1 ? el("span", { class: "tag host" }, ["Host"]) : "",
@@ -1610,7 +1634,7 @@ const SCRIPT = `
     }
     if (pending && pending.kind === "dying_rescue" && pending.queue[0] === me.seat) return { types: ["heal"], cls: "z-rescue", title: "Rescue seat " + pending.dyingSeat, hint: "Drop or tap your Heal card to save them." };
     if (!pending && match.activeSeat === me.seat && match.turnPhase !== "discard" && match.matchResult.status !== "complete") {
-      return { types: ["heal", "insight", "war_cry", "arrow_volley"], cls: "z-cast", title: "Cast on the table", hint: "Heal · Insight · War Cry · Arrow Volley — strikes and ploys go onto a foe." };
+      return { types: ["heal", "insight", "war_cry", "arrow_volley"], cls: "z-cast", title: "Cast on the table", hint: "Drop onto the table or click a lit card once. Strikes and ploys target a foe." };
     }
     return null;
   }
@@ -1693,6 +1717,7 @@ const SCRIPT = `
 
     var kids = [
       el("img", { class: "table-art", src: "/card-clash/environment/war-table", alt: "", "aria-hidden": "true", draggable: "false" }, []),
+      zone && !done ? el("div", { class: "table-drop-area", "data-drop": zone.types.join(" "), "data-zone": "1", "aria-hidden": "true" }, []) : "",
       el("div", { class: "far" }, opponents.map(function (p) {
         var drop = [];
         if (!p.eliminated) { drop.push("attack"); if (p.handSize > 0) { drop.push("seize"); drop.push("disarm"); } }
@@ -1775,7 +1800,7 @@ const SCRIPT = `
         ),
       ]),
       el("div", { class: "mini-controls" }, [
-        me && hand.length ? el("span", { class: "hand-hint" }, [hint]) : "",
+        me && hand.length && !targeting ? el("span", { class: "hand-hint" }, [hint]) : "",
         el("div", { id: "controls" }, me ? controls(me) : []),
       ]),
     ]);
@@ -1787,7 +1812,7 @@ const SCRIPT = `
     var opponents = match.players.filter(function (p) { return p.seat !== match.viewerSeat; });
     var modeName = (MODES.filter(function (m) { return m.v === match.mode; })[0] || {}).name || match.mode;
     return el("div", { class: "battle" }, [
-      el("div", { class: "topbar" }, [crest("crest"), el("strong", null, ["Card Clash"]), el("span", { class: "room-code" }, ["ROOM " + room.code]), el("span", { class: "mode-pill" }, [modeName + " · " + match.mode])]),
+      el("div", { class: "topbar" }, [crest("crest"), el("strong", null, ["Card Clash"]), el("span", { class: "room-code" }, ["ROOM " + room.code]), el("span", { class: "mode-pill" }, [modeName + " · " + match.mode]), el("a", { id: "return-lobby", class: "btn ghost small lobby-link", href: "/card-clash?resume=" + encodeURIComponent(room.code), title: done ? "Return to the lobby; this result is preserved." : "The match continues with its timers. Return using the same browser.", "aria-label": done ? "Return to lobby" : "Return to lobby; the match continues" }, ["Lobby"])]),
       battleTable(me, opponents),
       handDock(me),
     ]);

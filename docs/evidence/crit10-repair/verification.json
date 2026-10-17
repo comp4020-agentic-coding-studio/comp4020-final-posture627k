@@ -1,0 +1,91 @@
+{
+  "status": "Pre-release automated verification snapshot; human retest pending",
+  "baselineCommit": "9276b651fc8d28dbdee9fbda7426a361be72f688",
+  "regressionsBeforeFix": {
+    "targetedTests": 4,
+    "failed": 4
+  },
+  "checks": {
+    "gitDiffCheck": true,
+    "pnpmTypecheck": true,
+    "pnpmCheck": {
+      "files": 22,
+      "passed": 377
+    },
+    "pnpmCheckEvidence": true
+  },
+  "chromium": {
+    "channel": "chrome",
+    "realRendering": true,
+    "layoutCases": 84,
+    "viewports": [
+      [
+        1920,
+        1080
+      ],
+      [
+        1366,
+        768
+      ],
+      [
+        844,
+        390
+      ],
+      [
+        390,
+        844
+      ]
+    ],
+    "directCardGestures": 48,
+    "directCardTypes": [
+      "heal",
+      "insight",
+      "war_cry",
+      "arrow_volley"
+    ],
+    "gestures": [
+      "drop outside prompt",
+      "single click",
+      "invalid drag then single click"
+    ],
+    "discardCapCases": 4,
+    "lobbyRoundtrips": 8,
+    "mouseKeyboardTouchAndCancel": true,
+    "layoutStateIsFilteredFixture": true
+  },
+  "realDockerBrowserSmoke": {
+    "realServer": true,
+    "room": "32MBJ834",
+    "matchId": 2,
+    "realPointerAttackPosts": 1,
+    "overDiscardRejected": true,
+    "discardCap": true,
+    "lobbyResumeIdentity": true,
+    "versionBefore": 2,
+    "versionAfter": 4,
+    "response": "decline",
+    "crossBrowserSSE": true,
+    "deadline10Seconds": true,
+    "deadlineServerHeaderDeltaMs": 10369,
+    "privacy": true,
+    "assetRoutes": true,
+    "sqliteRestart": "not exercised by this browser smoke",
+    "pageErrors": []
+  },
+  "sourceSha256": {
+    "card-clash/ui.ts": "d557f9f2bf471d9ac5d88a5c06b6561d34866cfbd5b002ddfe0cefc292c72077",
+    "card-clash/engine.ts": "fd6b6c886c2390f5ce2b0d941f6cebac0b4e24b9665d2a3b8fd1ce05ea9dcdbe",
+    "spec/card-clash-engine.test.ts": "7c42bb6aa70eeb1cabcec32d899ca462f351a2200d7710185f7b23b08cca9603",
+    "spec/card-clash-actions-http.test.ts": "a75d729045451af27fda152957b3d462f3020f90d81e79dff994656b23785f81",
+    "spec/card-clash-play.test.ts": "f1e16df2bab8fcb1bf4c5b736627bd1f1b4dc7eb99b8ade6e0deb46db501f625",
+    "scripts/card-clash-browser-check.cjs": "627fe4689fa938eac36f9b5ea69b955b5994f718e308d80a94351f2d70ff6456",
+    "CLAUDE.md": "d505438bbbd6c644bf974622ff9968a9e1a2a26e2223cb71f266c5e16a9e6403",
+    "docs/card-clash-rules.md": "53e1ea92bdea786cd247d4f5bb16c5223d92e383ef9a6fe15adf7a0b7346d6f0"
+  },
+  "limitations": [
+    "Original reported double-click card/state not identified; no universal double-click requirement reproduced. Four direct types pass deliberate single-click and drag paths.",
+    "No deployed or classmate retest of repairs; original human session remains separately recorded.",
+    "No new next-day/redeploy persistence claim or final visual acceptance.",
+    "Single-card control spacing was not part of this repair."
+  ]
+}

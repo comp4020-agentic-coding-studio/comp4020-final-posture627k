@@ -1,9 +1,13 @@
 # Card Clash — two-person URL-only playtest
 
-Status: **scheduled/preparing; no human results recorded yet**. Two people who
-have not developed the game have agreed to test. Prior jsdom tests, real
-Chromium automation and Docker two-identity smoke tests are engineering
-checks; they are separate from this session.
+Status: **one short human session completed; local repairs verified, human retest outstanding**.
+On 17 October 2026, two classmates who had not developed the game used the
+newly deployed version for about five minutes and played one match. The
+author reports no operational hints were given. The record below is based
+on the author's account of the session and participant feedback, not a
+screen recording or matched server trace. Earlier automated checks remain
+separate evidence. The protocol planned a longer session; its proposed
+duration and viewport targets must not be read as actual coverage.
 
 ## Before inviting the testers
 
@@ -69,31 +73,85 @@ matchId, and source `timer` or `reconcile`. Correlate roomId with the earlier
 room creation record. Logging code remains in the server after the session.
 No cookie, private hand, deck, card ID list or whole payload is logged.
 
-## Session record — fill only after the session
+## Session record — 17 October 2026
 
-- Date/time/timezone: pending
-- Candidate commit/local revision and deployed-version evidence: pending
-- Venue: local / deployed (choose the actual one)
-- Participants: A and B; consent to anonymized notes: pending
-- Browser versions, viewports and identity separation: pending
-- Observer and log capture location: pending
+- Venue/version: production; the author identifies the newly deployed
+  candidate. Release baseline: `9276b651fc8d28dbdee9fbda7426a361be72f688`.
+  No session-side build identifier or screenshot was retained/provided.
+- Room: `EVM43AVT`; two independent identities; approximately five minutes,
+  one match. Exact start/end times and game mode were not supplied.
+- Participants: two classmates unfamiliar with development; anonymized as
+  A and B. They agreed to test; permission to publish identifiable material
+  has not been established, so no names or identifying screenshots are used.
+- Environment: Windows laptops, Chrome; browser versions, screen dimensions
+  and viewport sizes not recorded. This is not evidence of portrait testing.
+- Assistance: the author explicitly reports giving no operating hints.
+- Evidence source: author-supplied notes and paraphrased participant feedback.
+  No per-participant attribution, exact quotes or action timestamps supplied.
 
-| Time | Phase | Participant/seat | Observed action or exact quote | Matching log/version | Observation vs interpretation | Intervention / follow-up |
-|---|---|---|---|---|---|---|
-| pending | pending | pending | pending | pending | pending | pending |
-
-| Check | Observed / failed / not encountered | Evidence |
+| Check | Author-reported outcome | Evidence boundary |
 |---|---|---|
-| Find game from URL; create/join/ready/start | pending | pending |
-| Own hand and other player's public state | pending | pending |
-| Real action and other screen updates | pending | pending |
-| Defence, discard, timeout | pending | pending |
-| Reload/return using the same identity | pending | pending |
-| Player understanding and effect of co-presence | pending | pending |
+| Find game, create/join and start | Successful independently | No per-step timestamps or recording |
+| Understand turns, available cards and targets | Successful | Applies to this brief session, not every card |
+| Play, defend, discard and understand both screens' changes | Successful overall; discard defect below | Specific card types not recorded |
+| Synchronization without refresh | Successful; no delay noticed | Subjective observation, no measured latency |
+| Hidden-hand privacy | Neither tester saw the other's hidden hand | Visual observation, not a network-payload audit |
+| Ten-second timeout and rescue | Author confirms successful testing | Exact scenario/action trace unavailable |
+| Refresh/reopen with same identity and state | Author confirms successful testing | Same-day recovery; not next-day/redeploy evidence |
+| Participant response | Art was the most liked aspect; self HUD felt too small | Paraphrases, not verbatim quotations |
 
-Record findings separately from changes. For each fix, cite the commit and
-repeat the affected task; record whether retesting was independent or
-assisted. A human session is not a redeploy or next-day persistence test.
+### Findings and follow-up
+
+These are the **original** findings. [Subsequent local repairs](card-clash-playtest-repair.md) address all four and pass automated checks. Publication follows the release checklist; classmates' retesting remains pending. The original observations below are retained unchanged.
+
+| ID | Reported finding | Code inspection / interpretation | Required follow-up |
+|---|---|---|---|
+| U1 | Some targetless cards required double clicking; dragging to the table center failed | `resolveDropTarget` only accepts a hit inside an element with `data-drop`; for direct cards this is the central prompt, not the whole painted table. The click handler sends a direct action on one click, so a universal double-click requirement is not established. | Identify affected card/state and reproduce in Chromium. Align visible table affordance and drop hit area; preserve one-click, keyboard and cancel paths. |
+| U2 | With 2 HP and 5 cards, players could discard more than the expected 3 | UI selection has no excess-count cap; `discardCards` validates ownership but not a maximum count. Rules currently say hand size must be at most HP; the author's feedback clarifies the intended boundary. | Clarify the rule and enforce the remaining excess on both client and authoritative server, preserving partial discard and the existing deadline. Test 3 accepted versus 4/5 rejected, with rejected state unchanged. |
+| U3 | No return-to-lobby control during/after play | Battle topbar and completed-match controls contain no lobby navigation. This is a navigation gap, separate from excluded rematch/replacement features. | Add navigation with clear active-match behavior; do not imply that navigation cancels a match or resets identity. |
+| U4 | Self information HUD felt too small | A readability finding on Windows laptops; exact viewport not recorded | Improve compact text/HP readability; inspect fan/control clearance without rebuilding the visual composition. |
+
+### Server-log capture result
+
+A subsequent read of `flyctl logs --no-tail --json` returned 100 structured
+action records across the app but none carrying room `EVM43AVT`; no retained
+room-code record supplied a reliable roomId association for its timeout
+events. Consequently **no server trace has been attributed to this session**.
+This command reads the recent buffer, not a complete history. Absence from
+that buffer is not evidence that the session did not happen. Exact action
+counts, server timing and a log-supported narration cannot be reconstructed
+from the available evidence. A failed browser-only drag may generate no
+request at all and needs browser observation as well as server logs.
+
+The local export retained only allowlisted fields and a capture summary;
+it did not save platform raw output, cookies, tokens, hands or deck data.
+See [capture metadata](evidence/crit10-playtest/log-capture-summary.json).
+
+### Saving logs for a repeat session
+
+Run these commands in Ubuntu/WSL **before** participants begin. Keep the
+terminal open throughout; stop with Ctrl+C after the session:
+
+```bash
+cd /home/posture627ka/comp4020-final-posture627k
+umask 077
+mkdir -p "$HOME/card-clash-playtest-logs"
+mise exec -- /home/posture627ka/.fly/bin/flyctl logs -a comp4020-final-posture627k --json | tee "$HOME/card-clash-playtest-logs/session-$(date +%Y%m%d-%H%M%S).json"
+```
+
+These files live outside the repository. The output is a stream of JSON
+objects, not necessarily one JSON array or one object per line. Before
+publishing an excerpt, select `card_clash_action` records for the room;
+associate timeout records by roomId from its player-action records. Retain
+timestamps, anonymous participant/seat, action/outcome and version changes.
+Review/redact first; never publish raw platform logs or authentication data.
+Record the room code, local start/end time and timezone in the test notes.
+Saving a trace next time does not retroactively supply this session's logs.
+
+For each subsequent fix, cite its actual commit and repeat the affected
+task with a saved trace. Mark independent versus assisted retests. This
+session does not establish next-day persistence, final visual acceptance
+or complete Crit 10 compliance without the required log-based observation.
 
 ## Crit 10 reflection
 
