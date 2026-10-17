@@ -1,0 +1,12 @@
+{
+  "realHTTP": true,
+  "twoIndependentPlayers": true,
+  "bothSeatsAttributed": true,
+  "wrongSeatRejected": true,
+  "endTurnCommittedOnce": true,
+  "replayDistinguished": true,
+  "automaticTimeoutLogged": true,
+  "cookiesExcluded": true,
+  "humanPlaytest": "pending",
+  "eventCount": 9
+}

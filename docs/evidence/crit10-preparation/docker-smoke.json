@@ -1,0 +1,8 @@
+{
+  "dockerBuild": true,
+  "readmeEntry": true,
+  "currentREADME": true,
+  "gauntletAsset": true,
+  "twoIdentityCreateJoinReadyStart": true,
+  "humanTesting": "pending"
+}

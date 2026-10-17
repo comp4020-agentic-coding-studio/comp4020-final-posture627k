@@ -1,0 +1,18 @@
+{
+  "stage": "local preparation before first human session",
+  "pnpmCheck": {
+    "passedTests": 373,
+    "passedFiles": 22
+  },
+  "typecheck": "PASS",
+  "diffCheck": "PASS",
+  "checkEvidence": "PASS",
+  "humanPlaytest": "pending",
+  "finalVisualAcceptance": "pending",
+  "sourceSHA256": {
+    "server.ts": "5e98fa8b82e4466e3349b66be743686703d3a7577495f6ac79df0a1a312f7476",
+    "card-clash/ui.ts": "fdc077c4584d621005c6e59a91b5be620abcf74709709c125db780bb6b7cb72a",
+    "card-clash/scheduler.ts": "84dcd4ac095b8458978ed568c5a8b7133f32ad704e49beb84ef193b7fa75f991",
+    "card-clash/observability.ts": "af2a9f148fa25ec5b1592b8b33be1564a959ee9c7fbac9a11ae4025f2bc6614a"
+  }
+}

@@ -1,184 +1,47 @@
 # Process overview
 
-This repository was built with Claude Code as the implementing agent,
-working in explicit, human-reviewed slices rather than one large generation.
-Each slice below was proposed, implemented, verified against the running
-container, and only then committed — the commit sequence below is the actual
-development history, not a cleaned-up retelling of it. The
-[final project brief](https://comp.anu.edu.au/courses/comp4020-agentic-coding-studio/assessments/final-project/#what-you-submit)
-says what this account covers and how long it runs.
+I developed Card Clash through human-directed changes. My decisions concerned scope, constraints, rejected attempts and acceptance. Claude Code implemented the early work; I switched UI repairs to Codex when repeated visual revisions failed to converge. I used original AI-generated artwork for the medieval setting. This account separates committed development from later local, uncommitted experiments and distinguishes engineering evidence from my visual judgments.
 
-## Direction and architecture, before any code
+## Establishing a bounded system
 
-The first two commits fixed what the project actually was before any
-implementation began.
-[`9f4212a`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/9f4212a)
-replaced the course's empty README/CLAUDE.md templates with a genuine
-project direction (a grid-based multiplayer strategy prototype,
-server-authoritative by design, with team coordination as the actual design
-goal) and a concrete harness of rules for how the agent should work —
-written before a single line of application code existed.
-[`b675681`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/b675681)
-then recorded the real stack and schema decisions (Node + Hono +
-`node:sqlite`, persistent anonymous identity, a settings-revision/approval
-model for match start, a fixed 8×8 world, and settle-on-read resource
-production) as a reviewed architecture record, again before the vertical
-slice itself was built. Deciding these up front meant every later slice
-extended one coherent design instead of improvising a new one each time.
+The original concept was a multiplayer strategy game about coordination. [9f4212a](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/9f4212a) established its direction and agent harness before application logic; [b675681](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/b675681) recorded the Node/Hono/SQLite architecture in [the Crit 8 decision record](docs/crit-8-architecture.md).
 
-## Implementation as small, reviewed vertical slices
+The stack kept implementation small: Node executed TypeScript directly, Hono supplied routing, and SQLite held authoritative state on the persistent volume. Avoiding a frontend framework, ORM and bundler reduced moving parts, while native execution restricted usable TypeScript syntax. Server-issued anonymous identity supported separate players without accounts, at the cost of no identity recovery after clearing cookies or changing devices. These boundaries gave the agent a concrete implementation contract.
 
-Each gameplay capability landed as its own slice, verified against a real
-Docker container — not just unit tests — before being committed:
+Incremental slices established identity, joining and unanimous approval before starting. Historical-schema testing in [e456218](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/e456218) caught a temporal-dead-zone migration failure. During offline-production work ([d4874db](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/d4874db)), mixing synthetic and real timestamps exposed a fault in my test design; controlled fake timers corrected it. I learned to test previous database states and consistent clocks, not only fresh installations.
 
-- [`a46479c`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/a46479c)
-  replaced the course's placeholder BusyBox/static page with the real
-  Node/Hono server, while deliberately keeping the two fixed course
-  invariants (`/` and `/readme/`) green throughout the swap.
-- [`439ec8f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/439ec8f)
-  added persistent anonymous identity and campaign create/join/return,
-  verified with a real two-cookie-jar restart test against a Docker volume,
-  not just in-process assertions.
-- [`fecb926`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/fecb926)
-  added the settings-revision/approval model and atomic match start,
-  grounded in explicit invariants (a settings change invalidates prior
-  approvals; starting requires unanimous current-revision approval; approved
-  settings become immutable) rather than ad hoc checks.
-- [`e456218`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/e456218)
-  added persistent world generation and the schema v2 → v3 migration. The
-  migration test suite — run against a synthetic database built to the exact
-  shape of the *previous* schema version, not just a fresh one — caught a
-  real temporal-dead-zone bug in the migration's backfill path (a `const`
-  referenced before its own initializer had run) before it ever touched a
-  real database; it was fixed and re-verified, not patched around. This
-  "test the actual prior version, not just fresh" approach was repeated for
-  every later migration (v1 → v2 → v3 → v4 is still exercised as one chain
-  in the current test suite).
-- [`a25682b`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/a25682b)
-  added authorized resource-building construction. The existing schema
-  already covered it, so no migration was added for the sake of having one;
-  concurrent same-tile construction was explicitly tested to confirm the
-  database constraint — not an in-memory check — is what actually prevents a
-  double-build.
-- [`d4874db`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/d4874db)
-  added settle-on-read offline resource production. A real bug in my own
-  first test draft — mixing a synthetic settlement time with
-  `buildResourceBuilding`'s real `Date.now()` — produced an impossible
-  timeline; it was caught by the test itself, not by inspection, and fixed
-  by switching to Vitest's fake timers so construction and settlement share
-  one controlled clock. The no-timer design was then verified for real: the
-  container was stopped, left fully offline past a production interval, and
-  restarted from the same volume, with production correctly reconstructed
-  from persisted state alone.
+The 81-test suite passed, but human inspection found raw HTML, an undersized battlefield and long-link wrapping problems. [2ccf8ed](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/2ccf8ed) corrected presentation while preserving gameplay. That established a recurring distinction between technical correctness and usability.
 
-## Automated correctness was not treated as sufficient
+## Keeping realtime subordinate to authority
 
-By the end of the slices above, the suite reached 81/81 tests covering
-authorization, concurrency, schema migration across every historical
-version, and real container restart/offline behaviour. That was treated as
-necessary, not sufficient. A full functional acceptance pass re-ran the same
-flow an actual two-browser user would, followed by real human browser
-inspection — which found presentation problems no automated check could:
-the lobby read as raw default HTML, the 8×8 world was too small to function
-as the primary game surface on desktop, and a long deployed invite URL had a
-mobile wrapping risk.
-[`2ccf8ed`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/2ccf8ed)
-corrected exactly those issues — visual hierarchy, grid sizing, tile/build
-legibility, safe URL wrapping — without changing any gameplay behaviour; the
-same 81 tests still pass unchanged after it.
+Before implementation, [f4a14cb](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/f4a14cb) recorded the SSE contract in [the Crit 9 decision record](docs/crit-9-architecture.md). SQLite remained authoritative; events only requested a refetch. Hono's existing SSE support added no dependency, and an in-process subscriber registry suited the single-machine deployment. Multiple instances would require shared notification infrastructure.
 
-## Scope, deliberately
+Participant authorization, coalesced refreshes and notifications after effective committed mutations followed that contract ([4b117ead](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/4b117ead)). Registering abort handling before asynchronous suspension prevented a cleanup race; coalescing prevented older responses overwriting newer state. Two independent identities exercised notification, refetch and unauthorized-subscription rejection against a running container. These checks established synchronization and access control, not an intuitive multiplayer experience.
 
-Crit 8 was scoped as one proof-of-life vertical slice — create or join a
-campaign, agree on settings, start a persistent world, build one resource
-building, let production continue while offline, and recover the same state
-on return — and development stopped there on purpose. Armies, combat, fog of
-war, research and alternative victory conditions are real parts of the
-project's direction (see README.md) but were deliberately not started this
-cycle, rather than shipping partial, undertested versions of systems that
-each carry their own large set of invariants. Nothing in this repository or
-its README claims the current prototype is a complete strategy game, or that
-its design has been shown to teach the coordination and planning skills it's
-built around — those remain stated design goals, not measured outcomes.
+## Replacing the product while preserving infrastructure
 
-## Crit 9: realtime synchronization
+The strategy prototype demonstrated persistence but lacked a complete gameplay loop: resources had no meaningful sink or victory condition. I cancelled that direction. Poker Lab reused identity, transactions, SSE and deployment; [6f4689f](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/6f4689f) established its table-and-seat foundation with additive migrations. Poker subsequently remained as legacy code, not the final product.
 
-Realtime work followed the same before-code discipline as Crit 8.
-[`f4a14cb`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/f4a14cb)
-recorded the full decision record in `docs/crit-9-architecture.md` before
-any realtime code existed: SQLite stays the sole authority, an SSE event
-carries no payload, and the contract for exactly which mutations must (and
-must not) publish a notification was specified up front — including an
-explicit correction made mid-document, that a mutation returning
-`ok: true` is not the same as a mutation that changed anything, and only
-the latter may ever publish.
-[`4d8d0d5`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/4d8d0d5)
-added the SSE transport itself (`realtime.ts`, `GET /c/:code/events`),
-gated to participants per the ADR (`403`/`404` before the stream opens).
-Implementing cleanup surfaced a real race: `stream.onAbort()` has to be
-registered before any `await` in the handler, or a disconnect in that gap
-would go undetected — the comment recording this in `server.ts` was written
-at the point it was caught, not added afterward.
-[`bea7ede`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/bea7ede)
-added the authoritative `/live` fragment and the client-side refresh
-script, coalescing overlapping fetches so an older response can never
-overwrite a newer one.
-[`4b117ead`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/4b117ead)
-wired `publish()` into the existing mutation routes, but only on an
-*effective* change — reusing the no-op distinctions `db.ts` already exposed
-(`alreadyJoined`, `changed`) rather than re-deriving them, so a repeated
-join or a resubmission of the already-active preset correctly produces no
-notification.
+I chose Card Clash to bound a comprehensible multiplayer loop: three modes, eight cards, HP, responses, rescue, discard and team victory. [deba1de](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/deba1de) froze [the rules](docs/card-clash-rules.md), providing a reference against which to reject invented behavior. Separate slices implemented pure resolution, transactional persistence, HTTP validation ([a155386](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/a155386)), room-scoped realtime ([be378c5](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/be378c5)) and durable deadlines ([98445e7](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/98445e7)).
 
-Beyond the automated suite (128/128, including dedicated
-`spec/realtime.test.ts`, `spec/live-fragment.test.ts`, and
-`spec/realtime-mutations.test.ts` files), this slice was verified by
-building the actual Docker image this project ships and driving it with two
-independent cookie jars acting as two separate participants: one held an
-open `/c/:code/events` connection while the other performed a real
-mutation (an approval), and the first connection received a live
-`campaign_changed` event; a subsequent `/live` fetch showed exactly the
-resulting state, correctly scoped to each identity's own view. A
-non-participant identity's attempt to open the same event stream was
-rejected with `403`, as the ADR requires.
+The server determines outcomes and filters private hands before transmission. Ten-second deadlines persist in SQLite; overdue work reconciles when a sleeping Fly instance resumes. Browser countdowns and effects cannot authorize actions. Privacy, atomic transitions and reproducible rules remained acceptance constraints throughout visual work.
 
-This two-identity HTTP-level verification is real and was performed
-directly against the built image. A genuine two-browser, two-human visual
-acceptance pass — the standard this project held itself to for Crit 8 — has
-not yet been performed, and this branch has not yet been deployed:
-`main` and the live Fly deployment still reflect the Crit 8 baseline only.
+## Choosing and correcting the interaction
 
-## Pivot: strategy-war cancelled, replaced by Poker Lab
+The playable browser loop landed in [db92302](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/db92302). Later, my screenshots showed dashboard panels, tiny illustrations and weak spatial relationships. I directed the agent toward a knight holding cards at a physical table. Card-first input connected the player's hand to targets, while click, tap and keyboard paths remained available. This was a design intention, not yet evidence that new players found dragging intuitive.
 
-A human decision was made to cancel the strategy-war product entirely and
-replace it with Poker Lab, a multiplayer Texas Hold'em application, carried
-out on a new `poker-pivot` branch from the reviewed `c9-realtime` foundation
-rather than on `main`. The decision and its architecture are recorded in
-[`docs/poker-final-architecture.md`](docs/poker-final-architecture.md)
-before any poker-specific code existed, following the same before-code
-discipline as the Crit 8 and Crit 9 architecture records. The reasoning: the
-strategy-war's own gameplay loop remained incomplete (resources had no
-sink — no armies, movement, or victory condition), while its
-infrastructure — identity, SQLite transactions, SSE, Docker, Fly — was
-real, working, and worth keeping. `main` and `c9-realtime` are both
-preserved untouched as evidence of that earlier, completed work.
+Early CSS and SVG decoration passed tests but failed my visual comparison with the concept. Separate castle-hall and war-table paintings improved the artwork, yet placing the painted interior inside another background produced a framed picture. The environment needed to define the scene's coordinate system. P4 added opponent poses and brief effects triggered by confirmed public events; it still produced cropped titles, unstable geometry and composite body artwork obscuring cards.
 
-[`6f4689f`](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/6f4689f)
-is the foundation-slice commit: it removes the strategy-war's HTTP routes
-and business logic from `server.ts`/`db.ts` (keeping the v1-v4 schema and
-migrations byte-for-byte, since an existing database's historical data must
-keep migrating exactly as it always did), adds an additive v5 migration for
-two new, independent tables (`poker_tables`, `poker_seats`), and implements
-table creation, heads-up seating, and realtime join notifications by reusing
-the existing identity/transaction/SSE infrastructure unchanged — `realtime.ts`
-required no edits at all. The obsolete strategy-war test files were removed
-from the active suite in the same commit, since their corresponding runtime
-no longer exists; they remain in `main`'s and `c9-realtime`'s history.
-`spec/migration.test.ts` was rewritten to verify the v1-v4 chain with raw
-SQL instead of the now-removed campaign business-logic functions it used to
-call, so migration correctness stays independently verified rather than
-resting on trust.
+P5.1–P5.2 repairs exposed another workflow problem: attention to portrait layout had left ordinary desktop play unresolved. I reprioritized desktop composition while preserving functional portrait support. After repeated Claude Code revisions, I handed Codex a root-cause audit with explicit instructions to preserve uncommitted work, retain the unified fan and verify phases and viewpoints.
 
-This foundation slice is not a complete game: it has no cards, no betting,
-and no hands. It is scoped and tested as exactly that — a table/seat/identity
-foundation — not represented anywhere as more than it is.
+I made normal four-to-six-card desktop play the main visual acceptance case, with other phases and portrait support checked alongside it. My repair prompts prohibited changes to rules, persistence, SSE and timers, and required decorative hands to remain non-interactive. This narrowed the agent's task to presentation and input defects rather than another product redesign.
+
+P5.3 separated fan geometry from HUD widths, improved pointer dragging and replaced composite body art with transparent gauntlets anchored to outer cards. The [local audit](docs/card-clash-p53-audit.md) records implementation and regression checks. P5.4–P5.5 moved side controls inward and enlarged the hands; P5.6 adjusted arm angles, contextual prompts and text contrast. My subsequent six-card review found the view readable, while one card exposed controls moving too far inward as the fan shrank. That remains a targeted refinement, not a resolved result.
+
+## Evidence and release boundary
+
+Later agent reports recorded 367 passing tests, Docker smoke checks and Chromium checks at desktop and mobile dimensions. Most layout scenarios used deterministic filtered-state fixtures; a separate Docker smoke exercised the real server and dealt hands. I distinguish these from my screenshot judgments: measured bounds, successful submissions and privacy checks cannot establish believable anatomy or intuitive play. Corrections also reached the local UI regression tests and [browser-check script](scripts/card-clash-browser-check.cjs), providing repeatable checks beyond another visual retry.
+
+For Crit 10, [00544ac](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/00544ac) added server-derived actor/action logs, a privacy rule in CLAUDE.md, six regressions and a usable README entry. Independent-cookie HTTP and Docker checks support this preparation. Two classmates have agreed to test; their findings and reflection remain pending. In this revision, the [README's](README.md) MDA and system-status references clarify why mechanical correctness and readable feedback need separate evaluation. They frame current review, without claiming an earlier literature-led design.
+
+P5.x was kept local and uncommitted during visual review; this test candidate packages those changes for human testing. [393cc48](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/commit/393cc48) records that packaging, not separate historical commits for each visual iteration. Portable [P5.6 evidence](docs/evidence/p56/README.md) preserves the screenshots and their limitations. A running preview is not a deployed release, and screenshot acceptance does not replace two-person, URL-only playtesting. The working tree, assets, secret scans, database backup and course checks are reviewed using [the release checklist](docs/card-clash-release-checklist.md). Rematch, accounts, replacement players and extra cards remain excluded. The project taught me to combine bounded rules and server guarantees with human judgment about the experience those guarantees support.
