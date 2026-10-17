@@ -1,6 +1,6 @@
 # Card Clash — two-person URL-only playtest
 
-Status: **one short human session completed; local repairs verified, human retest outstanding**.
+Status: **original human session plus retained follow-up evidence; Lobby usability remains open**.
 On 17 October 2026, two classmates who had not developed the game used the
 newly deployed version for about five minutes and played one match. The
 author reports no operational hints were given. The record below is based
@@ -102,7 +102,7 @@ No cookie, private hand, deck, card ID list or whole payload is logged.
 
 ### Findings and follow-up
 
-These are the **original** findings. [Subsequent local repairs](card-clash-playtest-repair.md) address all four and pass automated checks. Publication follows the release checklist; classmates' retesting remains pending. The original observations below are retained unchanged.
+These are the **original** findings. [Subsequent local repairs](card-clash-playtest-repair.md) address all four and pass automated checks. Repairs were published in 18ad415; the later follow-up below confirms two fixes and adds a Lobby usability finding. The original observations below are retained unchanged.
 
 | ID | Reported finding | Code inspection / interpretation | Required follow-up |
 |---|---|---|---|
@@ -153,10 +153,32 @@ task with a saved trace. Mark independent versus assisted retests. This
 session does not establish next-day persistence, final visual acceptance
 or complete Crit 10 compliance without the required log-based observation.
 
+## Follow-up — retained capture and new feedback
+
+The author supplied `crit10-20261017-190236.json` and confirmed JCD73KK4 as
+the follow-up room, operated by the same two classmates with independent
+identities, unchanged Windows/Chrome environment and no operating hints.
+The retained room-specific window is 19:02:52.668–19:04:08.904 UTC+8 on
+17 October 2026; do not substitute the first session's five-minute duration.
+
+The [redacted evidence](evidence/crit10-retest/README.md) preserves 41 accepted
+operations for two server identities. It excludes 160 unrelated timeout
+records and retains no raw platform output, credentials or private hands.
+This does not recover EVM43AVT's earlier trace or establish live narration.
+
+The author reports that classmates confirmed targetless use and discard
+limits repaired. They found the Lobby button too small and recommended a
+confirmation before returning: **new open issue L1**. No confirmation flow
+or button-size change has been implemented in this documentation submission.
+No separate new HUD acceptance result was supplied. Gestures, discard
+quantities, navigation outcomes and subjective readability are not encoded
+in these action records; the evidence README distinguishes them from the
+author's report. Final visual acceptance remains separate.
+
 ## Crit 10 reflection
 
-After real observations, write `reflections/crit-10.md` in your own voice
-(about 150–300 words), answering:
+The [Crit 10 reflection](../reflections/crit-10.md) now records the original
+session, subsequent trace and follow-up limits, answering:
 
 1. What was the breakthrough that moved the work forward?
 2. What did this work change about who I want to be as a software developer?

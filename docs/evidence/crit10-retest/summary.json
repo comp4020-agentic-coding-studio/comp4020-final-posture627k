@@ -1,0 +1,43 @@
+{
+  "sourceFile": "crit10-20261017-190236.json",
+  "sourceBytes": 196168,
+  "sourceSha256": "5e5edd7485011020dcb30c370a07832b746cc831fcae866e2e87d4127e0a37ae",
+  "sourceActionRecords": 201,
+  "selectedRoom": "JCD73KK4",
+  "roomId": 13,
+  "selectedRecords": 41,
+  "excludedUnrelatedRecords": 160,
+  "firstEventUtc": "2026-10-17T11:02:52.668Z",
+  "lastEventUtc": "2026-10-17T11:04:08.904Z",
+  "anonymousParticipants": [
+    "participant-1",
+    "participant-2"
+  ],
+  "participantLabeling": "Server participant identifiers replaced by stable first-seen labels; no names or raw identity IDs published.",
+  "actionCounts": {
+    "create_room": 1,
+    "set_ready": 2,
+    "join_room": 1,
+    "start_match": 1,
+    "play_war_cry": 1,
+    "respond_group_attack": 1,
+    "play_attack": 7,
+    "respond_dodge": 3,
+    "play_insight": 1,
+    "end_turn": 8,
+    "discard_cards": 1,
+    "play_seize": 2,
+    "play_disarm": 4,
+    "decline_attack_response": 4,
+    "play_arrow_volley": 1,
+    "decline_group_response": 1,
+    "decline_rescue": 2
+  },
+  "outcomeCounts": {
+    "accepted": 41
+  },
+  "actionsSha256": "c71f29a7c8b5406190387d9e5afbe0e859ae2b81ef3b422273ae6663f67068fb",
+  "rawPlatformOutputIncluded": false,
+  "privateHandsCookiesTokensIncluded": false,
+  "boundary": "Server-action evidence only; no inference of mouse/drag path, discard quantity, measured latency, visual acceptance, or live log narration."
+}
