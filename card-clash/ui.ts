@@ -185,8 +185,15 @@ body.in-battle .error{position:fixed;z-index:20;left:50%;top:34px;transform:tran
 .topbar .crest{width:22px;height:25px}
 .topbar strong{font:700 1rem var(--serif);color:#f3d690}
 .topbar .room-code{font-size:.82rem}
-.topbar .lobby-link{font-size:.75rem;padding:5px 9px;white-space:nowrap;min-height:30px}
+.topbar .lobby-link{font-size:1rem;font-weight:700;padding:12px 18px;white-space:nowrap;min-width:104px;min-height:46px;flex-shrink:0;background:rgba(20,12,6,.82);border-color:var(--brass-hi)}
 .topbar .mode-pill{margin-left:auto;padding:2px 10px;border-radius:99px;background:rgba(0,0,0,.55);color:var(--brass-hi);font-weight:700;letter-spacing:.04em}
+.lobby-dialog{width:min(420px,calc(100vw - 28px));padding:20px;border:2px solid var(--brass);border-radius:8px;color:var(--ink);background:var(--ivory);box-shadow:0 12px 60px #000}
+.lobby-dialog::backdrop{background:rgba(12,7,3,.75)}
+.lobby-dialog h2{margin:0 0 8px;font:700 1.3rem var(--serif)}
+.lobby-dialog p{margin:8px 0 18px;line-height:1.5}
+.lobby-dialog-actions{display:flex;justify-content:flex-end;gap:10px}
+.lobby-dialog-actions .btn{min-height:44px;min-width:44px}
+.lobby-dialog-actions .btn.ghost{color:var(--oak-dark);border-color:var(--brass-lo);background:rgba(255,250,235,.6)}
 
 /* Far rim: opponent stations stand on the painted table's far edge. */
 .far{position:absolute;z-index:3;left:18%;right:18%;top:max(7%,calc(var(--crop-y,0px) + 40px));display:flex;justify-content:center;align-items:flex-end;gap:24px}
@@ -599,6 +606,7 @@ button[aria-pressed=true]{outline:none}
   .topbar strong{font-size:.85rem}
   .topbar .room-code{font-size:.65rem;letter-spacing:.05em}
   .topbar .mode-pill{font-size:.65rem;padding:2px 5px}
+  .topbar .lobby-link{font-size:.82rem;min-width:66px;padding:8px 10px}
   .stage-wrap{position:absolute;inset:0;container-type:normal}
   .stage{left:0;top:0;transform:none;width:100% !important;height:100% !important;aspect-ratio:auto;container-type:inline-size}
   .table-art{object-fit:cover;object-position:50% 45%}
@@ -1806,13 +1814,56 @@ const SCRIPT = `
     ]);
   }
 
+  // A lazily-built singleton <dialog>: native modal semantics (Escape,
+  // backdrop click target, focus containment baseline) plus a manual Tab
+  // trap and focus-restore-to-trigger on close, since jsdom/older browsers
+  // need the explicit fallback.
+  var lobbyDialog = null;
+  function openLobbyConfirm(done) {
+    if (!lobbyDialog) {
+      lobbyDialog = el("dialog", { id: "lobby-confirm", class: "lobby-dialog", "aria-labelledby": "lobby-confirm-title" }, [
+        el("h2", { id: "lobby-confirm-title" }, ["Return to lobby?"]),
+        el("p", { id: "lobby-confirm-body" }, []),
+        el("div", { class: "lobby-dialog-actions" }, [
+          el("button", { id: "lobby-stay", class: "btn ghost", onclick: function () { lobbyDialog.close(); } }, ["Stay"]),
+          el("a", { id: "lobby-confirm-go", class: "btn primary", href: "#" }, ["Return to Lobby"]),
+        ]),
+      ]);
+      lobbyDialog.addEventListener("keydown", function (event) {
+        if (event.key !== "Tab") return;
+        var controls = Array.prototype.filter.call(lobbyDialog.querySelectorAll("button,a[href],[tabindex]"), function (node) { return !node.disabled && node.tabIndex >= 0 && node.getClientRects().length; });
+        var first = controls[0], last = controls[controls.length - 1];
+        if (!first) { event.preventDefault(); return; }
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      });
+      lobbyDialog.addEventListener("close", function () { var trigger = document.getElementById("return-lobby"); if (trigger) trigger.focus({ preventScroll: true }); });
+      document.body.appendChild(lobbyDialog);
+    }
+    document.getElementById("lobby-confirm-body").textContent = done
+      ? "Your match will continue, and you can rejoin. This result is preserved."
+      : "Your match will continue, and you can rejoin.";
+    document.getElementById("lobby-confirm-go").href = "/card-clash?resume=" + encodeURIComponent(room.code);
+    lobbyDialog.showModal();
+    document.getElementById("lobby-stay").focus();
+  }
+
+  function returnLobbyLink(done) {
+    return el("button", {
+      id: "return-lobby", class: "btn ghost lobby-link", type: "button", "aria-haspopup": "dialog",
+      title: done ? "Return to the lobby; this result is preserved." : "The match continues with its timers. Return using the same browser.",
+      "aria-label": done ? "Return to lobby" : "Return to lobby; the match continues",
+      onclick: function () { openLobbyConfirm(done); },
+    }, ["Lobby"]);
+  }
+
   function battle() {
     var me = viewer();
     var done = match.matchResult.status === "complete";
     var opponents = match.players.filter(function (p) { return p.seat !== match.viewerSeat; });
     var modeName = (MODES.filter(function (m) { return m.v === match.mode; })[0] || {}).name || match.mode;
     return el("div", { class: "battle" }, [
-      el("div", { class: "topbar" }, [crest("crest"), el("strong", null, ["Card Clash"]), el("span", { class: "room-code" }, ["ROOM " + room.code]), el("span", { class: "mode-pill" }, [modeName + " · " + match.mode]), el("a", { id: "return-lobby", class: "btn ghost small lobby-link", href: "/card-clash?resume=" + encodeURIComponent(room.code), title: done ? "Return to the lobby; this result is preserved." : "The match continues with its timers. Return using the same browser.", "aria-label": done ? "Return to lobby" : "Return to lobby; the match continues" }, ["Lobby"])]),
+      el("div", { class: "topbar" }, [crest("crest"), el("strong", null, ["Card Clash"]), el("span", { class: "room-code" }, ["ROOM " + room.code]), el("span", { class: "mode-pill" }, [modeName + " · " + match.mode]), returnLobbyLink(done)]),
       battleTable(me, opponents),
       handDock(me),
     ]);
