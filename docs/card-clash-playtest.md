@@ -83,6 +83,9 @@ No cookie, private hand, deck, card ID list or whole payload is logged.
 - Participants: two classmates unfamiliar with development; anonymized as
   A and B. They agreed to test; permission to publish identifiable material
   has not been established, so no names or identifying screenshots are used.
+- Prior card-game experience: on 23 October the author clarified that these
+  two testers had played card games before. This later clarification does
+  not establish the experience of all potential users.
 - Environment: Windows laptops, Chrome; browser versions, screen dimensions
   and viewport sizes not recorded. This is not evidence of portrait testing.
 - Assistance: the author explicitly reports giving no operating hints.
@@ -174,6 +177,26 @@ No separate new HUD acceptance result was supplied. Gestures, discard
 quantities, navigation outcomes and subjective readability are not encoded
 in these action records; the evidence README distinguishes them from the
 author's report. Final visual acceptance remains separate.
+
+## Additional session — novice 2v2 playtest, 21 October 2026
+
+At approximately 16:30 UTC+8 on 21 October, the author observed four players
+in 2v2 with little or almost no card-game experience. Despite a small amount
+of operating guidance, players struggled to identify turns, discover Attack
+targeting, respond to attacks, interpret some card descriptions, understand
+countdown/discard rules and distinguish the teams. This was an assisted
+session, not an independent URL-only test. The room code and candidate
+version were not recorded, and no server logs were captured.
+
+The [field-observation record and proposed responses](card-clash-novice-playtest-20261021.md)
+were organised from the author's oral account on 23 October. They distinguish
+observations from interpretation, offer illustrated preparation rules,
+reusable/contextual Help, clearer team cues and two timing options, and retain
+the alternatives considered. The author approved the recommended combination
+on 23 October; [the local repair record](card-clash-novice-repair.md) separates
+implementation checks from the still-pending human retest. No improved
+usability outcome is attributed to this earlier session. It challenges generalisation
+from the earlier experienced testers; it does not invalidate their results.
 
 ## Crit 10 reflection
 

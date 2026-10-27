@@ -1,0 +1,163 @@
+{
+  "browser": "156.0.8078.47",
+  "cases": [
+    {
+      "viewport": [
+        1920,
+        1080
+      ],
+      "type": "attack",
+      "mouse": "choose/switch passed",
+      "keyboard": "switch/toggle passed",
+      "restingDuplicate": "unchanged",
+      "quickActions": "one matching card selected",
+      "cancel": "cleared",
+      "unchangedRefresh": "preserved"
+    },
+    {
+      "viewport": [
+        1920,
+        1080
+      ],
+      "type": "seize",
+      "mouse": "choose/switch passed",
+      "keyboard": "switch/toggle passed",
+      "restingDuplicate": "unchanged",
+      "quickActions": "one matching card selected",
+      "cancel": "cleared",
+      "unchangedRefresh": "preserved"
+    },
+    {
+      "viewport": [
+        1920,
+        1080
+      ],
+      "type": "disarm",
+      "mouse": "choose/switch passed",
+      "keyboard": "switch/toggle passed",
+      "restingDuplicate": "unchanged",
+      "quickActions": "one matching card selected",
+      "cancel": "cleared",
+      "unchangedRefresh": "preserved"
+    },
+    {
+      "viewport": [
+        1366,
+        768
+      ],
+      "type": "attack",
+      "mouse": "choose/switch passed",
+      "keyboard": "switch/toggle passed",
+      "restingDuplicate": "unchanged",
+      "quickActions": "one matching card selected",
+      "cancel": "cleared",
+      "unchangedRefresh": "preserved"
+    },
+    {
+      "viewport": [
+        1366,
+        768
+      ],
+      "type": "seize",
+      "mouse": "choose/switch passed",
+      "keyboard": "switch/toggle passed",
+      "restingDuplicate": "unchanged",
+      "quickActions": "one matching card selected",
+      "cancel": "cleared",
+      "unchangedRefresh": "preserved"
+    },
+    {
+      "viewport": [
+        1366,
+        768
+      ],
+      "type": "disarm",
+      "mouse": "choose/switch passed",
+      "keyboard": "switch/toggle passed",
+      "restingDuplicate": "unchanged",
+      "quickActions": "one matching card selected",
+      "cancel": "cleared",
+      "unchangedRefresh": "preserved"
+    },
+    {
+      "viewport": [
+        844,
+        390
+      ],
+      "type": "attack",
+      "mouse": "choose/switch passed",
+      "keyboard": "switch/toggle passed",
+      "restingDuplicate": "unchanged",
+      "quickActions": "one matching card selected",
+      "cancel": "cleared",
+      "unchangedRefresh": "preserved"
+    },
+    {
+      "viewport": [
+        844,
+        390
+      ],
+      "type": "seize",
+      "mouse": "choose/switch passed",
+      "keyboard": "switch/toggle passed",
+      "restingDuplicate": "unchanged",
+      "quickActions": "one matching card selected",
+      "cancel": "cleared",
+      "unchangedRefresh": "preserved"
+    },
+    {
+      "viewport": [
+        844,
+        390
+      ],
+      "type": "disarm",
+      "mouse": "choose/switch passed",
+      "keyboard": "switch/toggle passed",
+      "restingDuplicate": "unchanged",
+      "quickActions": "one matching card selected",
+      "cancel": "cleared",
+      "unchangedRefresh": "preserved"
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "type": "attack",
+      "mouse": "choose/switch passed",
+      "keyboard": "switch/toggle passed",
+      "restingDuplicate": "unchanged",
+      "quickActions": "one matching card selected",
+      "cancel": "cleared",
+      "unchangedRefresh": "preserved"
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "type": "seize",
+      "mouse": "choose/switch passed",
+      "keyboard": "switch/toggle passed",
+      "restingDuplicate": "unchanged",
+      "quickActions": "one matching card selected",
+      "cancel": "cleared",
+      "unchangedRefresh": "preserved"
+    },
+    {
+      "viewport": [
+        390,
+        844
+      ],
+      "type": "disarm",
+      "mouse": "choose/switch passed",
+      "keyboard": "switch/toggle passed",
+      "restingDuplicate": "unchanged",
+      "quickActions": "one matching card selected",
+      "cancel": "cleared",
+      "unchangedRefresh": "preserved"
+    }
+  ],
+  "fixtures": "Deterministic filtered projections rendered with the real page and assets",
+  "pageErrors": []
+}

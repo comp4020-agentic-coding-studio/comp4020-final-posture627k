@@ -1,0 +1,53 @@
+{
+  "recordedDate": "2026-10-23",
+  "baselineCommit": "70ec40a6a1627c10be06d99be6e3171674ad2311",
+  "candidate": "local working tree; uncommitted",
+  "checks": {
+    "git diff --check": "passed",
+    "pnpm typecheck": "passed via pnpm check",
+    "pnpm check": {
+      "files": 22,
+      "tests": 380,
+      "result": "passed"
+    },
+    "pnpm check:evidence": "passed"
+  },
+  "browser": "156.0.8078.47",
+  "viewports": [
+    [
+      1920,
+      1080
+    ],
+    [
+      1366,
+      768
+    ],
+    [
+      844,
+      390
+    ],
+    [
+      390,
+      844
+    ]
+  ],
+  "existingProjectionCases": 84,
+  "novice2v2ViewpointCases": 16,
+  "nativeHelp": "live context, continuing clock, keyboard containment, Escape, Close and focus return passed",
+  "nativeLobbyConfirmation": "cancel, accept and room resume passed during and after matches",
+  "input": {
+    "pointerAndKeyboard": "passed at each viewport",
+    "touch": "drag and pointercancel passed on both mobile sizes"
+  },
+  "fixtures": "Deterministic filtered state projections rendered with the real page and assets; separate automated tests exercise rules, HTTP, storage and deadlines.",
+  "pageErrors": [],
+  "humanRetest": "pending",
+  "finalVisualAcceptance": "pending",
+  "deployment": "not performed",
+  "screenshots": [
+    "1920-normal6.png",
+    "1366-help.png",
+    "844-response.png",
+    "390-normal6.png"
+  ]
+}

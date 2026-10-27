@@ -1,0 +1,4010 @@
+{
+  "faces": [
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 503.02447509765625,
+        "top": 712.8270263671875,
+        "right": 717.810546875,
+        "bottom": 982.0189208984375
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Response only",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 650.2840576171875,
+        "top": 696.4143676757812,
+        "right": 848.8206787109375,
+        "bottom": 955.3845825195312
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 799.3197021484375,
+        "top": 691.4855346679688,
+        "right": 980.4366455078125,
+        "bottom": 938.7076416015625
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 940.0633544921875,
+        "top": 691.4855346679688,
+        "right": 1121.1802978515625,
+        "bottom": 938.7076416015625
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-seize playable",
+      "rule": "Take 1 random card from target.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Seize",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "1 random card"
+      ],
+      "badge": "Take 1",
+      "badgePointer": "none",
+      "rect": {
+        "left": 1071.6636962890625,
+        "top": 696.4143676757812,
+        "right": 1270.2003173828125,
+        "bottom": 955.3845825195312
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-arrow_volley playable",
+      "rule": "Play Dodge or lose 1 HP.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Arrow Volley",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 1202.580078125,
+        "top": 712.8270263671875,
+        "right": 1417.3662109375,
+        "bottom": 982.0189208984375
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 99,
+      "ruleScroll": 99,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 493.99365234375,
+        "top": 683.0831909179688,
+        "right": 717.3711547851562,
+        "bottom": 963.0427856445312
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 99,
+      "ruleScroll": 99,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Response only",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 643.4610595703125,
+        "top": 666.58349609375,
+        "right": 849.9391479492188,
+        "bottom": 935.9125366210938
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 99,
+      "ruleScroll": 99,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 794.7447509765625,
+        "top": 661.743408203125,
+        "right": 983.1063232421875,
+        "bottom": 918.8543701171875
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 99,
+      "ruleScroll": 99,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 937.3936767578125,
+        "top": 661.743408203125,
+        "right": 1125.7552490234375,
+        "bottom": 918.8543701171875
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-seize playable",
+      "rule": "Take 1 random card from target.",
+      "ruleHeight": 99,
+      "ruleScroll": 99,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Seize",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "1 random card"
+      ],
+      "badge": "Take 1",
+      "badgePointer": "none",
+      "rect": {
+        "left": 1070.545166015625,
+        "top": 666.58349609375,
+        "right": 1277.0233154296875,
+        "bottom": 935.9125366210938
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-arrow_volley playable",
+      "rule": "Play Dodge or lose 1 HP.",
+      "ruleHeight": 99,
+      "ruleScroll": 99,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Arrow Volley",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 1203.01953125,
+        "top": 683.0831909179688,
+        "right": 1426.39697265625,
+        "bottom": 963.0427856445312
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 503.02447509765625,
+        "top": 712.8270263671875,
+        "right": 717.810546875,
+        "bottom": 982.0189208984375
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-disarm playable",
+      "rule": "Target discards 1 random card.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Disarm",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "1 random card"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 650.2840576171875,
+        "top": 696.4143676757812,
+        "right": 848.8206787109375,
+        "bottom": 955.3845825195312
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-war_cry playable",
+      "rule": "Play Attack or lose 1 HP.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "War Cry",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Attack",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 799.3197021484375,
+        "top": 691.4855346679688,
+        "right": 980.4366455078125,
+        "bottom": 938.7076416015625
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 940.0633544921875,
+        "top": 691.4855346679688,
+        "right": 1121.1802978515625,
+        "bottom": 938.7076416015625
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 1071.6636962890625,
+        "top": 696.4143676757812,
+        "right": 1270.2003173828125,
+        "bottom": 955.3845825195312
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Response only",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 1202.580078125,
+        "top": 712.8270263671875,
+        "right": 1417.3662109375,
+        "bottom": 982.0189208984375
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 99,
+      "ruleScroll": 99,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 493.99365234375,
+        "top": 683.0831909179688,
+        "right": 717.3711547851562,
+        "bottom": 963.0427856445312
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-disarm playable",
+      "rule": "Target discards 1 random card.",
+      "ruleHeight": 99,
+      "ruleScroll": 99,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Disarm",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "1 random card"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 643.4610595703125,
+        "top": 666.58349609375,
+        "right": 849.9391479492188,
+        "bottom": 935.9125366210938
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-war_cry playable",
+      "rule": "Play Attack or lose 1 HP.",
+      "ruleHeight": 99,
+      "ruleScroll": 99,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "War Cry",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Attack",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 794.7447509765625,
+        "top": 661.743408203125,
+        "right": 983.1063232421875,
+        "bottom": 918.8543701171875
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 99,
+      "ruleScroll": 99,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 937.3936767578125,
+        "top": 661.743408203125,
+        "right": 1125.7552490234375,
+        "bottom": 918.8543701171875
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 99,
+      "ruleScroll": 99,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 1070.545166015625,
+        "top": 666.58349609375,
+        "right": 1277.0233154296875,
+        "bottom": 935.9125366210938
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 99,
+      "ruleScroll": 99,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Response only",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 1203.01953125,
+        "top": 683.0831909179688,
+        "right": 1426.39697265625,
+        "bottom": 963.0427856445312
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 345.4071350097656,
+        "top": 526.076171875,
+        "right": 503.6484069824219,
+        "bottom": 724.4020385742188
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Response only",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 454.1230773925781,
+        "top": 513.8933715820312,
+        "right": 600.392578125,
+        "bottom": 704.6885986328125
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 564.1270751953125,
+        "top": 510.30792236328125,
+        "right": 697.5626831054688,
+        "bottom": 692.4478759765625
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 668.0466918945312,
+        "top": 510.30792236328125,
+        "right": 801.4822998046875,
+        "bottom": 692.4478759765625
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-seize playable",
+      "rule": "Take 1 random card from target.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Seize",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "1 random card"
+      ],
+      "badge": "Take 1",
+      "badgePointer": "none",
+      "rect": {
+        "left": 765.216796875,
+        "top": 513.8933715820312,
+        "right": 911.4862670898438,
+        "bottom": 704.6885986328125
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-arrow_volley playable",
+      "rule": "Play Dodge or lose 1 HP.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Arrow Volley",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 861.8515625,
+        "top": 526.076171875,
+        "right": 1020.0928955078125,
+        "bottom": 724.4020385742188
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 54,
+      "ruleScroll": 54,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 337.7491149902344,
+        "top": 498.9941711425781,
+        "right": 502.3200378417969,
+        "bottom": 705.2530517578125
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 54,
+      "ruleScroll": 54,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Response only",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 448.49114990234375,
+        "top": 486.6853942871094,
+        "right": 600.6114501953125,
+        "bottom": 685.1124267578125
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 54,
+      "ruleScroll": 54,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 560.554443359375,
+        "top": 483.13433837890625,
+        "right": 699.327392578125,
+        "bottom": 672.5598754882812
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 54,
+      "ruleScroll": 54,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 666.281982421875,
+        "top": 483.13433837890625,
+        "right": 805.054931640625,
+        "bottom": 672.5598754882812
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-seize playable",
+      "rule": "Take 1 random card from target.",
+      "ruleHeight": 54,
+      "ruleScroll": 54,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Seize",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "1 random card"
+      ],
+      "badge": "Take 1",
+      "badgePointer": "none",
+      "rect": {
+        "left": 764.9979248046875,
+        "top": 486.6853942871094,
+        "right": 917.1182250976562,
+        "bottom": 685.1124267578125
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-arrow_volley playable",
+      "rule": "Play Dodge or lose 1 HP.",
+      "ruleHeight": 54,
+      "ruleScroll": 54,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Arrow Volley",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 863.179931640625,
+        "top": 498.9941711425781,
+        "right": 1027.7508544921875,
+        "bottom": 705.2530517578125
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 345.4071350097656,
+        "top": 526.076171875,
+        "right": 503.6484069824219,
+        "bottom": 724.4020385742188
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-disarm playable",
+      "rule": "Target discards 1 random card.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Disarm",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "1 random card"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 454.1230773925781,
+        "top": 513.8933715820312,
+        "right": 600.392578125,
+        "bottom": 704.6885986328125
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-war_cry playable",
+      "rule": "Play Attack or lose 1 HP.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "War Cry",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Attack",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 564.1270751953125,
+        "top": 510.30792236328125,
+        "right": 697.5626831054688,
+        "bottom": 692.4478759765625
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 668.0466918945312,
+        "top": 510.30792236328125,
+        "right": 801.4822998046875,
+        "bottom": 692.4478759765625
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 765.216796875,
+        "top": 513.8933715820312,
+        "right": 911.4862670898438,
+        "bottom": 704.6885986328125
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Response only",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 861.8515625,
+        "top": 526.076171875,
+        "right": 1020.0928955078125,
+        "bottom": 724.4020385742188
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 54,
+      "ruleScroll": 54,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 337.7491149902344,
+        "top": 498.9941711425781,
+        "right": 502.3200378417969,
+        "bottom": 705.2530517578125
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-disarm playable",
+      "rule": "Target discards 1 random card.",
+      "ruleHeight": 54,
+      "ruleScroll": 54,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Disarm",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Choose player",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "1 random card"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 448.49114990234375,
+        "top": 486.6853942871094,
+        "right": 600.6114501953125,
+        "bottom": 685.1124267578125
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-war_cry playable",
+      "rule": "Play Attack or lose 1 HP.",
+      "ruleHeight": 54,
+      "ruleScroll": 54,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "War Cry",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Attack",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 560.554443359375,
+        "top": 483.13433837890625,
+        "right": 699.327392578125,
+        "bottom": 672.5598754882812
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 54,
+      "ruleScroll": 54,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 666.281982421875,
+        "top": 483.13433837890625,
+        "right": 805.054931640625,
+        "bottom": 672.5598754882812
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 54,
+      "ruleScroll": 54,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Tap to play",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 764.9979248046875,
+        "top": 486.6853942871094,
+        "right": 917.1182250976562,
+        "bottom": 685.1124267578125
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 54,
+      "ruleScroll": 54,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Response only",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 863.179931640625,
+        "top": 498.9941711425781,
+        "right": 1027.7508544921875,
+        "bottom": 705.2530517578125
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Choose player",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 182.97235107421875,
+        "top": 231.13482666015625,
+        "right": 295.3607177734375,
+        "bottom": 371.99267578125
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Response only",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 260.003662109375,
+        "top": 222.56910705566406,
+        "right": 363.8892822265625,
+        "bottom": 358.07843017578125
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Tap to play",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 337.9931640625,
+        "top": 219.97479248046875,
+        "right": 432.7637023925781,
+        "bottom": 349.3368225097656
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 11,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Tap to play",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 411.6269226074219,
+        "top": 219.97479248046875,
+        "right": 506.3974304199219,
+        "bottom": 349.3368225097656
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-seize playable",
+      "rule": "Take 1 random card from target.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 33,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Seize",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Choose player",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "1 random card"
+      ],
+      "badge": "Take 1",
+      "badgePointer": "none",
+      "rect": {
+        "left": 480.4857177734375,
+        "top": 222.56910705566406,
+        "right": 584.371337890625,
+        "bottom": 358.07843017578125
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-arrow_volley playable",
+      "rule": "Play Dodge or lose 1 HP.",
+      "ruleHeight": 26,
+      "ruleScroll": 26,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Arrow Volley",
+      "titleHeight": 26,
+      "titleScroll": 26,
+      "status": "Tap to play",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 549.0142822265625,
+        "top": 231.13482666015625,
+        "right": 661.4026489257812,
+        "bottom": 371.99267578125
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 46,
+      "ruleScroll": 46,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Choose player",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 176.4275665283203,
+        "top": 206.21142578125,
+        "right": 293.31146240234375,
+        "bottom": 352.70355224609375
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 46,
+      "ruleScroll": 46,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Response only",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 255.33755493164062,
+        "top": 197.48817443847656,
+        "right": 363.37860107421875,
+        "bottom": 338.4178466796875
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 46,
+      "ruleScroll": 46,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Tap to play",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 335.2332763671875,
+        "top": 194.8841552734375,
+        "right": 433.79461669921875,
+        "bottom": 329.420654296875
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 46,
+      "ruleScroll": 46,
+      "copyHeight": 11,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Tap to play",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 410.59600830078125,
+        "top": 194.8841552734375,
+        "right": 509.1573486328125,
+        "bottom": 329.420654296875
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-seize playable",
+      "rule": "Take 1 random card from target.",
+      "ruleHeight": 46,
+      "ruleScroll": 46,
+      "copyHeight": 33,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Seize",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Choose player",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "1 random card"
+      ],
+      "badge": "Take 1",
+      "badgePointer": "none",
+      "rect": {
+        "left": 480.99639892578125,
+        "top": 197.48817443847656,
+        "right": 589.0374755859375,
+        "bottom": 338.4178466796875
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-arrow_volley playable",
+      "rule": "Play Dodge or lose 1 HP.",
+      "ruleHeight": 33,
+      "ruleScroll": 33,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Arrow Volley",
+      "titleHeight": 26,
+      "titleScroll": 26,
+      "status": "Tap to play",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 551.0635375976562,
+        "top": 206.21142578125,
+        "right": 667.9474487304688,
+        "bottom": 352.70355224609375
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Choose player",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 182.97235107421875,
+        "top": 231.13482666015625,
+        "right": 295.3607177734375,
+        "bottom": 371.99267578125
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-disarm playable",
+      "rule": "Target discards 1 random card.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Disarm",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Choose player",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "1 random card"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 260.003662109375,
+        "top": 222.56910705566406,
+        "right": 363.8892822265625,
+        "bottom": 358.07843017578125
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-war_cry playable",
+      "rule": "Play Attack or lose 1 HP.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "War Cry",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Tap to play",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Attack",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 337.9931640625,
+        "top": 219.97479248046875,
+        "right": 432.7637023925781,
+        "bottom": 349.3368225097656
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 11,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Tap to play",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 411.6269226074219,
+        "top": 219.97479248046875,
+        "right": 506.3974304199219,
+        "bottom": 349.3368225097656
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Tap to play",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 480.4857177734375,
+        "top": 222.56910705566406,
+        "right": 584.371337890625,
+        "bottom": 358.07843017578125
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Response only",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 549.0142822265625,
+        "top": 231.13482666015625,
+        "right": 661.4026489257812,
+        "bottom": 371.99267578125
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 46,
+      "ruleScroll": 46,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Choose player",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 176.4275665283203,
+        "top": 206.21142578125,
+        "right": 293.31146240234375,
+        "bottom": 352.70355224609375
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-disarm playable",
+      "rule": "Target discards 1 random card.",
+      "ruleHeight": 46,
+      "ruleScroll": 46,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Disarm",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Choose player",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "1 random card"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 255.33755493164062,
+        "top": 197.48817443847656,
+        "right": 363.37860107421875,
+        "bottom": 338.4178466796875
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-war_cry playable",
+      "rule": "Play Attack or lose 1 HP.",
+      "ruleHeight": 46,
+      "ruleScroll": 46,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "War Cry",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Tap to play",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Attack",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 335.2332763671875,
+        "top": 194.8841552734375,
+        "right": 433.79461669921875,
+        "bottom": 329.420654296875
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 46,
+      "ruleScroll": 46,
+      "copyHeight": 11,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Tap to play",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 410.59600830078125,
+        "top": 194.8841552734375,
+        "right": 509.1573486328125,
+        "bottom": 329.420654296875
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 46,
+      "ruleScroll": 46,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Tap to play",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 480.99639892578125,
+        "top": 197.48817443847656,
+        "right": 589.0374755859375,
+        "bottom": 338.4178466796875
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 46,
+      "ruleScroll": 46,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Response only",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 551.0635375976562,
+        "top": 206.21142578125,
+        "right": 667.9474487304688,
+        "bottom": 352.70355224609375
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Choose player",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 28.25392723083496,
+        "top": 521.4534912109375,
+        "right": 163.48952293395996,
+        "bottom": 690.94140625
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Response only",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 73.73017883300781,
+        "top": 518.3748168945312,
+        "right": 198.73489379882812,
+        "bottom": 681.4267578125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Tap to play",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 119.81371307373047,
+        "top": 519.0330810546875,
+        "right": 233.8507080078125,
+        "bottom": 674.68798828125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 12,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Tap to play",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 160.5399169921875,
+        "top": 519.0330810546875,
+        "right": 274.576904296875,
+        "bottom": 674.68798828125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-seize playable",
+      "rule": "Take 1 random card from target.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Seize",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Choose player",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "1 random card"
+      ],
+      "badge": "Take 1",
+      "badgePointer": "none",
+      "rect": {
+        "left": 195.74948120117188,
+        "top": 518.3748168945312,
+        "right": 320.7541809082031,
+        "bottom": 681.4267578125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 0,
+      "view": "rest",
+      "type": "card card-arrow_volley playable",
+      "rule": "Play Dodge or lose 1 HP.",
+      "ruleHeight": 35,
+      "ruleScroll": 35,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Arrow Volley",
+      "titleHeight": 24,
+      "titleScroll": 25,
+      "status": "Tap to play",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 230.88548278808594,
+        "top": 521.4534912109375,
+        "right": 366.1210632324219,
+        "bottom": 690.94140625
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 44,
+      "ruleScroll": 44,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 15,
+      "titleScroll": 15,
+      "status": "Choose player",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 21.154468536376953,
+        "top": 495.4547119140625,
+        "right": 161.79948806762695,
+        "bottom": 671.7221069335938
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 44,
+      "ruleScroll": 44,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 15,
+      "titleScroll": 15,
+      "status": "Response only",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 68.58283233642578,
+        "top": 492.2342529296875,
+        "right": 198.5877456665039,
+        "bottom": 661.8082885742188
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 44,
+      "ruleScroll": 44,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 15,
+      "titleScroll": 15,
+      "status": "Tap to play",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 116.64881896972656,
+        "top": 492.9048156738281,
+        "right": 235.24729919433594,
+        "bottom": 654.785888671875
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 44,
+      "ruleScroll": 44,
+      "copyHeight": 12,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 15,
+      "titleScroll": 15,
+      "status": "Tap to play",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 159.14332580566406,
+        "top": 492.9048156738281,
+        "right": 277.7418212890625,
+        "bottom": 654.785888671875
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-seize playable",
+      "rule": "Take 1 random card from target.",
+      "ruleHeight": 44,
+      "ruleScroll": 44,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Seize",
+      "titleHeight": 15,
+      "titleScroll": 15,
+      "status": "Choose player",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "1 random card"
+      ],
+      "badge": "Take 1",
+      "badgePointer": "none",
+      "rect": {
+        "left": 195.89663696289062,
+        "top": 492.2342529296875,
+        "right": 325.90155029296875,
+        "bottom": 661.8082885742188
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 0,
+      "view": "hover",
+      "type": "card card-arrow_volley playable",
+      "rule": "Play Dodge or lose 1 HP.",
+      "ruleHeight": 44,
+      "ruleScroll": 44,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Arrow Volley",
+      "titleHeight": 15,
+      "titleScroll": 15,
+      "status": "Tap to play",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 232.5755157470703,
+        "top": 495.4547119140625,
+        "right": 373.22052001953125,
+        "bottom": 671.7221069335938
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Choose player",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 28.25392723083496,
+        "top": 521.4534912109375,
+        "right": 163.48952293395996,
+        "bottom": 690.94140625
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-disarm playable",
+      "rule": "Target discards 1 random card.",
+      "ruleHeight": 35,
+      "ruleScroll": 35,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Disarm",
+      "titleHeight": 24,
+      "titleScroll": 25,
+      "status": "Choose player",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "1 random card"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 73.73017883300781,
+        "top": 518.3748168945312,
+        "right": 198.73489379882812,
+        "bottom": 681.4267578125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-war_cry playable",
+      "rule": "Play Attack or lose 1 HP.",
+      "ruleHeight": 35,
+      "ruleScroll": 35,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "War Cry",
+      "titleHeight": 24,
+      "titleScroll": 25,
+      "status": "Tap to play",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Attack",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 119.81371307373047,
+        "top": 519.0330810546875,
+        "right": 233.8507080078125,
+        "bottom": 674.68798828125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 12,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Tap to play",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 160.5399169921875,
+        "top": 519.0330810546875,
+        "right": 274.576904296875,
+        "bottom": 674.68798828125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Tap to play",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 195.74948120117188,
+        "top": 518.3748168945312,
+        "right": 320.7541809082031,
+        "bottom": 681.4267578125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 1,
+      "view": "rest",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Response only",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 230.88548278808594,
+        "top": 521.4534912109375,
+        "right": 366.1210632324219,
+        "bottom": 690.94140625
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 44,
+      "ruleScroll": 44,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 15,
+      "titleScroll": 15,
+      "status": "Choose player",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 21.154468536376953,
+        "top": 495.4547119140625,
+        "right": 161.79948806762695,
+        "bottom": 671.7221069335938
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-disarm playable",
+      "rule": "Target discards 1 random card.",
+      "ruleHeight": 44,
+      "ruleScroll": 44,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Disarm",
+      "titleHeight": 15,
+      "titleScroll": 15,
+      "status": "Choose player",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "1 random card"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 68.58283233642578,
+        "top": 492.2342529296875,
+        "right": 198.5877456665039,
+        "bottom": 661.8082885742188
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-war_cry playable",
+      "rule": "Play Attack or lose 1 HP.",
+      "ruleHeight": 44,
+      "ruleScroll": 44,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "War Cry",
+      "titleHeight": 15,
+      "titleScroll": 15,
+      "status": "Tap to play",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Attack",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 116.64881896972656,
+        "top": 492.9048156738281,
+        "right": 235.24729919433594,
+        "bottom": 654.785888671875
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-insight playable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 44,
+      "ruleScroll": 44,
+      "copyHeight": 12,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 15,
+      "titleScroll": 15,
+      "status": "Tap to play",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 159.14332580566406,
+        "top": 492.9048156738281,
+        "right": 277.7418212890625,
+        "bottom": 654.785888671875
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 44,
+      "ruleScroll": 44,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 15,
+      "titleScroll": 15,
+      "status": "Tap to play",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 195.89663696289062,
+        "top": 492.2342529296875,
+        "right": 325.90155029296875,
+        "bottom": 661.8082885742188
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "set": 1,
+      "view": "hover",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 44,
+      "ruleScroll": 44,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 15,
+      "titleScroll": 15,
+      "status": "Response only",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 232.5755157470703,
+        "top": 495.4547119140625,
+        "right": 373.22052001953125,
+        "bottom": 671.7221069335938
+      }
+    }
+  ],
+  "states": [
+    {
+      "width": 1920,
+      "height": 1080,
+      "label": "full-hp",
+      "type": "card card-heal unavailable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Full HP",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 799.3197021484375,
+        "top": 691.4855346679688,
+        "right": 980.4366455078125,
+        "bottom": 938.7076416015625
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "label": "attack-limit",
+      "type": "card card-attack unavailable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Attack limit used",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 503.02447509765625,
+        "top": 712.8270263671875,
+        "right": 717.810546875,
+        "bottom": 982.0189208984375
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "label": "empty-hands",
+      "type": "card card-seize unavailable",
+      "rule": "Take 1 random card from target.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Seize",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Empty hands",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "1 random card"
+      ],
+      "badge": "Take 1",
+      "badgePointer": "none",
+      "rect": {
+        "left": 1071.6636962890625,
+        "top": 696.4143676757812,
+        "right": 1270.2003173828125,
+        "bottom": 955.3845825195312
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "label": "attack-response",
+      "type": "card card-dodge playable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Play Dodge",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 650.2840576171875,
+        "top": 696.4143676757812,
+        "right": 848.8206787109375,
+        "bottom": 955.3845825195312
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "label": "needs-dodge",
+      "type": "card card-heal unavailable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Needs Dodge",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 799.3197021484375,
+        "top": 691.4855346679688,
+        "right": 980.4366455078125,
+        "bottom": 938.7076416015625
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "label": "group-response",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Play Attack",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 503.02447509765625,
+        "top": 712.8270263671875,
+        "right": 717.810546875,
+        "bottom": 982.0189208984375
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "label": "rescue",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Play Heal",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 799.3197021484375,
+        "top": 691.4855346679688,
+        "right": 980.4366455078125,
+        "bottom": 938.7076416015625
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "label": "waiting-response",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Wait for seat 2",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 650.2840576171875,
+        "top": 696.4143676757812,
+        "right": 848.8206787109375,
+        "bottom": 955.3845825195312
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "label": "waiting-turn",
+      "type": "card card-insight unavailable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Wait for turn",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 940.0633544921875,
+        "top": 691.4855346679688,
+        "right": 1121.1802978515625,
+        "bottom": 938.7076416015625
+      }
+    },
+    {
+      "width": 1920,
+      "height": 1080,
+      "label": "complete",
+      "type": "card card-attack unavailable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 79,
+      "ruleScroll": 79,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Match over",
+      "statusWidth": 148,
+      "statusScroll": 148,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 503.02447509765625,
+        "top": 712.8270263671875,
+        "right": 717.810546875,
+        "bottom": 982.0189208984375
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "label": "full-hp",
+      "type": "card card-heal unavailable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Full HP",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 564.1270751953125,
+        "top": 510.30792236328125,
+        "right": 697.5626831054688,
+        "bottom": 692.4478759765625
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "label": "attack-limit",
+      "type": "card card-attack unavailable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Attack limit used",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 345.4071350097656,
+        "top": 526.076171875,
+        "right": 503.6484069824219,
+        "bottom": 724.4020385742188
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "label": "empty-hands",
+      "type": "card card-seize unavailable",
+      "rule": "Take 1 random card from target.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Seize",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Empty hands",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "1 random card"
+      ],
+      "badge": "Take 1",
+      "badgePointer": "none",
+      "rect": {
+        "left": 765.216796875,
+        "top": 513.8933715820312,
+        "right": 911.4862670898438,
+        "bottom": 704.6885986328125
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "label": "attack-response",
+      "type": "card card-dodge playable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Play Dodge",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 454.1230773925781,
+        "top": 513.8933715820312,
+        "right": 600.392578125,
+        "bottom": 704.6885986328125
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "label": "needs-dodge",
+      "type": "card card-heal unavailable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Needs Dodge",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 564.1270751953125,
+        "top": 510.30792236328125,
+        "right": 697.5626831054688,
+        "bottom": 692.4478759765625
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "label": "group-response",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Play Attack",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 345.4071350097656,
+        "top": 526.076171875,
+        "right": 503.6484069824219,
+        "bottom": 724.4020385742188
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "label": "rescue",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Play Heal",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 564.1270751953125,
+        "top": 510.30792236328125,
+        "right": 697.5626831054688,
+        "bottom": 692.4478759765625
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "label": "waiting-response",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Wait for seat 2",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 454.1230773925781,
+        "top": 513.8933715820312,
+        "right": 600.392578125,
+        "bottom": 704.6885986328125
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "label": "waiting-turn",
+      "type": "card card-insight unavailable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 15,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Wait for turn",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 668.0466918945312,
+        "top": 510.30792236328125,
+        "right": 801.4822998046875,
+        "bottom": 692.4478759765625
+      }
+    },
+    {
+      "width": 1366,
+      "height": 768,
+      "label": "complete",
+      "type": "card card-attack unavailable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 40,
+      "ruleScroll": 40,
+      "copyHeight": 30,
+      "ruleFont": 12.48,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 17,
+      "titleScroll": 17,
+      "status": "Match over",
+      "statusWidth": 103,
+      "statusScroll": 103,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 345.4071350097656,
+        "top": 526.076171875,
+        "right": 503.6484069824219,
+        "bottom": 724.4020385742188
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "label": "full-hp",
+      "type": "card card-heal unavailable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Full HP",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 337.9931640625,
+        "top": 219.97479248046875,
+        "right": 432.7637023925781,
+        "bottom": 349.3368225097656
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "label": "attack-limit",
+      "type": "card card-attack unavailable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Attack limit used",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 182.97235107421875,
+        "top": 231.13482666015625,
+        "right": 295.3607177734375,
+        "bottom": 371.99267578125
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "label": "empty-hands",
+      "type": "card card-seize unavailable",
+      "rule": "Take 1 random card from target.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 33,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Seize",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Empty hands",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "1 random card"
+      ],
+      "badge": "Take 1",
+      "badgePointer": "none",
+      "rect": {
+        "left": 480.4857177734375,
+        "top": 222.56910705566406,
+        "right": 584.371337890625,
+        "bottom": 358.07843017578125
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "label": "attack-response",
+      "type": "card card-dodge playable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Play Dodge",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 260.003662109375,
+        "top": 222.56910705566406,
+        "right": 363.8892822265625,
+        "bottom": 358.07843017578125
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "label": "needs-dodge",
+      "type": "card card-heal unavailable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Needs Dodge",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 337.9931640625,
+        "top": 219.97479248046875,
+        "right": 432.7637023925781,
+        "bottom": 349.3368225097656
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "label": "group-response",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Play Attack",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 182.97235107421875,
+        "top": 231.13482666015625,
+        "right": 295.3607177734375,
+        "bottom": 371.99267578125
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "label": "rescue",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Play Heal",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 337.9931640625,
+        "top": 219.97479248046875,
+        "right": 432.7637023925781,
+        "bottom": 349.3368225097656
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "label": "waiting-response",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Wait for seat 2",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 260.003662109375,
+        "top": 222.56910705566406,
+        "right": 363.8892822265625,
+        "bottom": 358.07843017578125
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "label": "waiting-turn",
+      "type": "card card-insight unavailable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 11,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Wait for turn",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 411.6269226074219,
+        "top": 219.97479248046875,
+        "right": 506.3974304199219,
+        "bottom": 349.3368225097656
+      }
+    },
+    {
+      "width": 844,
+      "height": 390,
+      "label": "complete",
+      "type": "card card-attack unavailable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 39,
+      "ruleScroll": 39,
+      "copyHeight": 22,
+      "ruleFont": 9.6,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 13,
+      "titleScroll": 13,
+      "status": "Match over",
+      "statusWidth": 72,
+      "statusScroll": 72,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 182.97235107421875,
+        "top": 231.13482666015625,
+        "right": 295.3607177734375,
+        "bottom": 371.99267578125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "label": "full-hp",
+      "type": "card card-heal unavailable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Full HP",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 119.81371307373047,
+        "top": 519.0330810546875,
+        "right": 233.8507080078125,
+        "bottom": 674.68798828125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "label": "attack-limit",
+      "type": "card card-attack unavailable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Attack limit used",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 28.25392723083496,
+        "top": 521.4534912109375,
+        "right": 163.48952293395996,
+        "bottom": 690.94140625
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "label": "empty-hands",
+      "type": "card card-seize unavailable",
+      "rule": "Take 1 random card from target.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Seize",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Empty hands",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "1 random card"
+      ],
+      "badge": "Take 1",
+      "badgePointer": "none",
+      "rect": {
+        "left": 195.74948120117188,
+        "top": 518.3748168945312,
+        "right": 320.7541809082031,
+        "bottom": 681.4267578125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "label": "attack-response",
+      "type": "card card-dodge playable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Play Dodge",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 73.73017883300781,
+        "top": 518.3748168945312,
+        "right": 198.73489379882812,
+        "bottom": 681.4267578125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "label": "needs-dodge",
+      "type": "card card-heal unavailable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Needs Dodge",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 119.81371307373047,
+        "top": 519.0330810546875,
+        "right": 233.8507080078125,
+        "bottom": 674.68798828125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "label": "group-response",
+      "type": "card card-attack playable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Play Attack",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 28.25392723083496,
+        "top": 521.4534912109375,
+        "right": 163.48952293395996,
+        "bottom": 690.94140625
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "label": "rescue",
+      "type": "card card-heal playable",
+      "rule": "+1 HP: self or rescue.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Heal",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Play Heal",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 119.81371307373047,
+        "top": 519.0330810546875,
+        "right": 233.8507080078125,
+        "bottom": 674.68798828125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "label": "waiting-response",
+      "type": "card card-dodge unavailable",
+      "rule": "Block Attack or Arrow Volley.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Dodge",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Wait for seat 2",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Attack",
+        "Arrow Volley"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 73.73017883300781,
+        "top": 518.3748168945312,
+        "right": 198.73489379882812,
+        "bottom": 681.4267578125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "label": "waiting-turn",
+      "type": "card card-insight unavailable",
+      "rule": "Draw 2 cards.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 12,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Insight",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Wait for turn",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "2 cards"
+      ],
+      "badge": "Draw 2",
+      "badgePointer": "none",
+      "rect": {
+        "left": 160.5399169921875,
+        "top": 519.0330810546875,
+        "right": 274.576904296875,
+        "bottom": 674.68798828125
+      }
+    },
+    {
+      "width": 390,
+      "height": 844,
+      "label": "complete",
+      "type": "card card-attack unavailable",
+      "rule": "Target: Dodge or lose 1 HP.",
+      "ruleHeight": 37,
+      "ruleScroll": 37,
+      "copyHeight": 24,
+      "ruleFont": 10.56,
+      "ruleFamily": "\"Trebuchet MS\", \"Segoe UI\", system-ui, sans-serif",
+      "title": "Attack",
+      "titleHeight": 12,
+      "titleScroll": 13,
+      "status": "Match over",
+      "statusWidth": 90,
+      "statusScroll": 90,
+      "bold": [
+        "Dodge",
+        "1 HP"
+      ],
+      "badgePointer": null,
+      "rect": {
+        "left": 28.25392723083496,
+        "top": 521.4534912109375,
+        "right": 163.48952293395996,
+        "bottom": 690.94140625
+      }
+    }
+  ]
+}

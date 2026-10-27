@@ -4,11 +4,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { playHeal, respondToAttack, respondToRescue } from "../card-clash/combat.ts";
 import { buildCardClashTransition } from "../card-clash/action-http.ts";
-import { CARD_CLASH_DEADLINE_MS } from "../card-clash/timers.ts";
+import { CARD_CLASH_DEADLINE_MS, computeNextCardClashDeadline } from "../card-clash/timers.ts";
 import type { GameMode, MatchState, Seat } from "../card-clash/types.ts";
 import type { PersistedCardClashMatch } from "../db.ts";
 
-// D4C-1: durable 10-second action/response timers. Most tests here exercise
+// D4C-1: durable 15-second action/response timers. Most tests here exercise
 // db.ts's applyCardClashTransition/processCardClashTimeout and
 // card-clash/scheduler.ts directly against a real, isolated on-disk SQLite
 // database — the same "forced trusted transition" technique
@@ -100,7 +100,7 @@ function setHand(state: MatchState, seat: Seat, size: number): MatchState {
   return { ...state, players: new Map(state.players).set(seat, { ...player, hand }) };
 }
 
-it("1. match start creates the first 10-second MAIN deadline even though the fresh hand exceeds the HP limit", () => {
+it("1. match start creates the first 15-second MAIN deadline even though the fresh hand exceeds the HP limit", () => {
   const before = Date.now();
   const { matchId } = setUpStartedMatch("1v1");
   const after = Date.now();
@@ -142,7 +142,7 @@ it("2. an ordinary MAIN timeout ends the action phase and the next turn receives
   expect(nextDeadline.version).toBe(after.version);
 });
 
-it("3/4/5. a successful immediate-effect play (Heal) resets the MAIN deadline to a fresh 10 seconds; an invalid action changes nothing", () => {
+it("3/4/5. a successful immediate-effect play (Heal) resets the MAIN deadline to a fresh 15 seconds; an invalid action changes nothing", () => {
   const { matchId } = setUpStartedMatch("1v1");
   const match0 = db.getCardClashMatchById(matchId)!;
   const activeSeat = match0.state.activeSeat;
@@ -166,7 +166,7 @@ it("3/4/5. a successful immediate-effect play (Heal) resets the MAIN deadline to
   if (!rejected.ok) expect(rejected.reason).toBe("transition_rejected");
   expect(db.getCardClashDeadline(matchId)).toEqual(beforeDeadline);
 
-  // A real successful Heal must reset the MAIN deadline to a fresh 10-second window.
+  // A real successful Heal must reset the MAIN deadline to a fresh 15-second window.
   const healResult = db.applyCardClashTransition({
     matchId,
     requestId: freshId(),
@@ -179,7 +179,7 @@ it("3/4/5. a successful immediate-effect play (Heal) resets the MAIN deadline to
   expect(afterDeadline.expiresAt).toBeGreaterThan(beforeDeadline.expiresAt);
 });
 
-it("6/7. Attack opens a 10-second response window for the target, and a Dodge before expiration cancels that timeout (a stale callback for it is a no-op)", () => {
+it("6/7. Attack opens a 15-second response window for the target, and a Dodge before expiration cancels that timeout (a stale callback for it is a no-op)", () => {
   const { matchId, roomId } = setUpStartedMatch("1v1");
   const match0 = db.getCardClashMatchById(matchId)!;
   const attacker = match0.state.activeSeat;
@@ -561,7 +561,7 @@ function enterDiscardByTimeout(matchId: number, roomId: number) {
   return db.getCardClashDeadline(matchId)!;
 }
 
-it("33. MAIN timeout with excess enters DISCARD (no cards touched) with a fresh 10 s deadline; with no excess it advances directly", () => {
+it("33. MAIN timeout with excess enters DISCARD (no cards touched) with a fresh 15 s deadline; with no excess it advances directly", () => {
   const { matchId, roomId, seat } = matchInMain("1v1", 2);
   const before = db.getCardClashMatchById(matchId)!;
   const mainDeadline = db.getCardClashDeadline(matchId)!;
@@ -738,4 +738,25 @@ it("41. auto-discard progression works in 2v2 and skips eliminated seats", () =>
   expect(db.processCardClashTimeout(matchId, discard.version, discard.expiresAt, seq([0])).applied).toBe(true);
   expect(seat).toBe(1);
   expect(db.getCardClashMatchById(matchId)!.state.activeSeat).toBe(3);
+});
+
+
+it("novice revision grants 15 seconds for every new decision and preserves a stored older discard deadline", () => {
+  expect(CARD_CLASH_DEADLINE_MS).toBe(15_000);
+  const { matchId, roomId } = setUpStartedMatch("2v2");
+  const initial = db.getCardClashMatchById(matchId)!.state;
+  const now = 1_000_000;
+  const states: MatchState[] = [
+    { ...initial, pending: undefined },
+    { ...initial, turnPhase: "discard", pending: undefined },
+    { ...initial, pending: { kind: "attack_response", attacker: 1, target: 2 } },
+    { ...initial, pending: { kind: "group_response", context: { actor: 1, cardType: "war_cry", requiredResponseType: "attack", queue: [2, 3, 4] } } },
+    { ...initial, pending: { kind: "dying_rescue", dyingSeat: 2, queue: [1, 4, 3, 2], resumeActiveSeat: 1 } },
+  ];
+  for (const state of states) expect(computeNextCardClashDeadline(state, now)!.expiresAt).toBe(now + 15_000);
+  const stored = { responderSeat: initial.activeSeat, expiresAt: now + 10_000 };
+  expect(computeNextCardClashDeadline(states[1]!, now + 3_000, stored)).toEqual(stored);
+  const actual = db.getCardClashDeadline(matchId)!;
+  expect(scheduler.runCardClashTimeoutCheck(matchId, roomId, actual.version, actual.expiresAt - 5_000)).toBe(false);
+  expect(db.getCardClashDeadline(matchId)).toEqual(actual);
 });

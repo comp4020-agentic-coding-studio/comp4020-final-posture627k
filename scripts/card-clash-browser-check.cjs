@@ -19,7 +19,7 @@ function fixture(mode='1v1', seat=1, n=6, phase='main') {
   if(phase==='attack')state.pending={kind:'attack_response',attacker:foe,target:seat};
   if(phase==='war_cry'||phase==='arrow_volley')state.pending={kind:'group_response',context:{actor:foe,cardType:phase,requiredResponseType:phase==='war_cry'?'attack':'dodge',queue:[seat]}};
   if(phase==='rescue'||phase==='self_rescue'){const dying=phase==='self_rescue'?seat:foe;state.pending={kind:'dying_rescue',dyingSeat:dying,queue:phase==='self_rescue'?[seat]:[seat,foe],resumeActiveSeat:seat};players.find(p=>p.seat===dying).hp=0;}
-  state.deadline={expiresAt:Date.now()+10000,responderSeat:phase==='waiting'?foe:seat};
+  state.deadline={expiresAt:Date.now()+15000,responderSeat:phase==='waiting'?foe:seat};
   return {metadata:{code:'P53AUDIT',mode,status:'active',requiredSeats:count,hostSeat:1,seats:players.map(p=>({seatNumber:p.seat,ready:true})),viewerSeat:seat},state};
 }
 async function visiblePoint(card) {
@@ -48,7 +48,7 @@ async function run() {
       const url=route.request().url();
       if(url.endsWith('/events'))return route.abort();
       if(route.request().method()==='POST'){posts.push(route.request().postDataJSON());return route.fulfill({json:{ok:true}});}
-      return route.fulfill({json:url.endsWith('/state')?{...f.state,deadline:{...f.state.deadline,expiresAt:Date.now()+10000}}:f.metadata});
+      return route.fulfill({json:url.endsWith('/state')?{...f.state,deadline:{...f.state.deadline,expiresAt:Date.now()+15000}}:f.metadata});
     };
     await page.route('**/api/card-clash/rooms/**',routeFixture);
     async function open(mode,seat,n,phase){
@@ -187,6 +187,7 @@ async function run() {
       for(const complete of [false,true]){
         await open('1v1',1,6,'main');
         if(complete){f.state.matchResult={status:'complete',winningTeam:'A'};await page.evaluate(()=>window.__cardClash.refresh(true));}
+        page.once('dialog',d=>d.accept());
         await page.locator('#return-lobby').click();await page.waitForSelector('#create');
         assert.equal(posts.length,0,'Lobby navigation must not mutate gameplay');
         assert.equal(new URL(await page.locator('#resume-room').getAttribute('href'),base).searchParams.get('room'),'P53AUDIT');
@@ -230,4 +231,5 @@ async function run() {
     console.log(JSON.stringify({projectionCases:results.length,viewports:sizes,pointerAndKeyboard:'passed',evidence:out}));
   } finally {await browser.close();}
 }
-run().catch(e=>{console.error(e);process.exitCode=1});
+module.exports={fixture};
+if(require.main===module)run().catch(e=>{console.error(e);process.exitCode=1});

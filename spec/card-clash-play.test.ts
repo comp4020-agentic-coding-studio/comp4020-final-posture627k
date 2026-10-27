@@ -314,9 +314,10 @@ it("playtest: the Lobby button asks for confirmation; Stay keeps the match untou
   const { code, jars, matchId } = await setup("1v1");
   const p = await open(jars[1]!, code);
   const before = cur(matchId);
-  // jsdom does not implement native <dialog> behaviour (showModal/close);
-  // native Escape/focus trapping are exercised separately in the real
-  // Chromium verification this release records.
+  // jsdom does not implement native dialog behaviour; native Escape/focus
+  // trapping are exercised separately in the real Chromium verification
+  // (see the Help dialog precedent in spec/card-clash-ui.test.ts).
+
   p.dom.window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
   p.dom.window.HTMLDialogElement.prototype.close = function () { this.open = false; this.dispatchEvent(new p.dom.window.Event("close")); };
   const trigger = p.doc.getElementById("return-lobby") as HTMLButtonElement;

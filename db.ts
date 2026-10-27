@@ -44,8 +44,9 @@ import {
 // as a further new, independent set of tables — poker's own tables and data
 // are untouched; no poker record is ever copied or reinterpreted as a Card
 // Clash one. Version 8 adds one more additive Card Clash table (durable
-// action/response deadlines for the v2.6 10-second timers, docs/card-clash-
-// rules.md §11) — nothing from v1-v7 is touched.
+// action/response deadlines, docs/card-clash-rules.md §11 — originally
+// 10-second windows, revised to 15 seconds in v2.7) — nothing from v1-v7
+// is touched.
 const SCHEMA_VERSION = 8;
 
 // The fixed Crit 8 world layout. Defined here, ahead of the schema/migration
@@ -1830,8 +1831,9 @@ export function startCardClashMatch(
     db.prepare("UPDATE card_clash_rooms SET status = 'active' WHERE id = ?").run(roomId);
 
     // Starting a match always creates its first actionable deadline too
-    // (docs §11/D4C-1 task spec) — seat 1's own first 10-second MAIN
-    // window, computed the same way every subsequent one is.
+    // (docs §11/D4C-1 task spec) — seat 1's own first MAIN window
+    // (CARD_CLASH_DEADLINE_MS, currently 15 seconds), computed the same
+    // way every subsequent one is.
     const initialDeadline = computeNextCardClashDeadline(initialState, nowMs);
     upsertCardClashDeadlineInTx(matchId, initialState.version, initialDeadline);
 

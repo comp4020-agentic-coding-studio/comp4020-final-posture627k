@@ -1,4 +1,4 @@
-// Pure server-authoritative deadline logic for Card Clash's v2.6 10-second
+// Pure server-authoritative deadline logic for Card Clash's v2.6 15-second
 // action/response timers (docs/card-clash-rules.md §11). No HTTP, no
 // SQLite, no real wall-clock access, no process-global state — exactly the
 // same discipline as engine.ts/combat.ts/group-effects.ts: every exported
@@ -7,12 +7,8 @@
 // deterministically. See db.ts for how these are persisted durably and
 // card-clash/scheduler.ts for the real-timer/SSE wiring built on top.
 //
-// Deliberately NOT here (D4C-1 scope, docs §11's own "Discard-phase
-// timeout" note): any automatic/random discard when a MAIN timeout leaves
-// the active player's hand over their current-HP limit. That case is
-// recognized below (computeNextCardClashDeadline returns null for it, the
-// same as a terminal match) but never resolved on its own — a human
-// decision is still required before any such policy exists.
+// All new decisions share the duration below; persisted absolute deadlines
+// remain authoritative, including older windows and partial discards.
 
 import { autoDiscardAndAdvance, endMainPhase } from "./turn-flow.ts";
 import type { RandomInt } from "./deck.ts";
@@ -20,7 +16,7 @@ import { respondToAttack, respondToRescue } from "./combat.ts";
 import { respondToGroupEffect } from "./group-effects.ts";
 import type { MatchState, Seat } from "./types.ts";
 
-export const CARD_CLASH_DEADLINE_MS = 10_000;
+export const CARD_CLASH_DEADLINE_MS = 15_000;
 
 export interface CardClashDeadlineInfo {
   readonly responderSeat: Seat;
@@ -31,11 +27,10 @@ export interface CardClashDeadlineInfo {
 // now" — called after EVERY successful transition (a normal action or a
 // timeout's own follow-up), never only for one action type, so every case
 // in docs §11 (fresh MAIN period after a resolved card, a response's own
-//10s window, each group/rescue responder getting their own fresh window)
+//15s window, each group/rescue responder getting their own fresh window)
 // falls out of this one rule rather than needing per-action special-casing.
-// Returns null when no timer should run right now: the match is over, or
-// the active player's hand already exceeds their current-HP limit (the
-// unresolved DISCARD block above — docs §11's open decision).
+// Returns null only after the match is over. DISCARD preserves an existing
+// deadline across partial submissions.
 export function computeNextCardClashDeadline(
   state: MatchState,
   nowMs: number,
@@ -62,11 +57,8 @@ export function computeNextCardClashDeadline(
 }
 
 export interface CardClashTimeoutOutcome {
-  // Whether the engine's own MatchState actually changed. False for the
-  // DISCARD-block no-op above (endTurn correctly refuses, nothing is
-  // forced) — callers must treat `changed: false` as "nothing happened",
-  // never apply damage/advance a turn, and never broadcast it as if it
-  // were a real event.
+  // Whether the engine changed state. Stale or inapplicable timeouts are
+  // no-ops and must never be broadcast as if they changed the match.
   readonly changed: boolean;
   readonly state: MatchState;
 }

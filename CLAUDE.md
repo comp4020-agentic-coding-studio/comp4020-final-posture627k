@@ -80,12 +80,26 @@ gets marked, not just the code it produces.
   interactions that only work with a mouse and keyboard unless there's a
   stated reason a given surface is desktop-only.
 
+- Track a targeted hand selection by its unique card ID as well as action
+  type. Duplicate card types must never all appear selected; quick actions
+  choose one matching card, and cancel/state changes clear the selection.
 - Preserve a reachable central-table drop surface for direct cards, with
   single-click and keyboard alternatives; cancelled drags must not consume
   the next deliberate action. Keep decorative assets non-interactive.
 - Never discard more than the remaining excess over current HP. Enforce
   this on the server as well as the UI; rejected requests change neither
   cards nor version/deadline. Navigation must not reset a match or identity.
+
+## Novice guidance and decision time
+
+- New Card Clash decision windows last 15 seconds, from the server timer
+  constant. The UI must share that duration and never extend a stored
+  deadline through refresh, Help, invalid actions or partial discard.
+- Keep illustrated preparation rules and reusable Help aligned with the
+  eight-card rules. Help keeps updating while the match and clock continue.
+- Distinguish turn owner from current responder. Identify You/Ally/Opponent
+  in text alongside team colours and shield marks, without banning legal
+  ally targets or revealing private hands.
 
 ## What this file does not do
 
