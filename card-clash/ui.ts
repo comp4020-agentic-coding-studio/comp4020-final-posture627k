@@ -1,3 +1,5 @@
+import { CARD_CLASH_DEADLINE_MS } from "./timers.ts";
+
 // Card Clash browser UI: one self-contained server-rendered page with
 // inline CSS and vanilla JS — no build step, no separate stylesheet. All
 // decisions stay server-authoritative: the page only calls the existing
@@ -185,7 +187,7 @@ body.in-battle .error{position:fixed;z-index:20;left:50%;top:34px;transform:tran
 .topbar .crest{width:22px;height:25px}
 .topbar strong{font:700 1rem var(--serif);color:#f3d690}
 .topbar .room-code{font-size:.82rem}
-.topbar .lobby-link{font-size:.75rem;padding:5px 9px;white-space:nowrap;min-height:30px}
+.topbar .lobby-link{font-size:1rem;font-weight:700;padding:12px 18px;white-space:nowrap;min-width:104px;min-height:46px;flex-shrink:0;background:rgba(20,12,6,.82);border-color:var(--brass-hi)}
 .topbar .mode-pill{margin-left:auto;padding:2px 10px;border-radius:99px;background:rgba(0,0,0,.55);color:var(--brass-hi);font-weight:700;letter-spacing:.04em}
 
 /* Far rim: opponent stations stand on the painted table's far edge. */
@@ -252,6 +254,7 @@ body[data-drag] .far .seat.drop-ok::after{content:"Drop to target";position:abso
 .table-drop-area{position:absolute;left:24%;right:24%;top:40%;bottom:20%;border-radius:32px;pointer-events:none;z-index:1}
 .table-drop-area.drop-ok{outline:2px dashed rgba(255,227,154,.8);background:rgba(255,224,150,.08)}
 .table-drop-area.zone-active{outline-style:solid;background:rgba(255,224,150,.18)}
+.scene-edge-shade{position:absolute;inset:0;z-index:0;pointer-events:none;background:linear-gradient(90deg,rgba(12,7,3,.22),transparent 23%,transparent 77%,rgba(12,7,3,.22))}
 .table-art{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;user-select:none;-webkit-user-drag:none}
 .stage > .centerpiece{position:absolute;z-index:2;left:51%;top:44%;transform:translate(-50%,-50%)}
 .stage > .chronicle{position:absolute;z-index:2;left:66%;top:37%;width:18%;align-self:auto}
@@ -451,16 +454,21 @@ details.fallback[open] summary{margin-bottom:6px}
 .card .plate{position:relative;z-index:2;display:flex;align-items:center;justify-content:center;gap:4px;margin:4px 6px 0;padding:3px 6px 4px;border-radius:4px;
   background:linear-gradient(180deg,#fbf2da,#e1c68e);box-shadow:0 0 0 1px var(--brass-lo),0 2px 3px rgba(0,0,0,.35),inset 0 1px 0 #fff}
 .card .plate .glyph{width:14px;height:14px;flex:0 0 auto}
-.card .card-name{min-width:0;width:100%;font:700 .86rem/1.05 var(--serif);color:var(--oak-deep);text-align:center;letter-spacing:.01em;
-  white-space:normal;word-break:normal;overflow-wrap:break-word;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;max-height:2.15em}
-.card .card-art{position:relative;flex:0 0 44%;margin:4px 6px 0;border-radius:3px;overflow:hidden;background:#2a1b10;
+.card-arrow_volley .plate .glyph{display:none}
+.card .card-name{min-width:0;width:100%;font:700 .86rem/1.2 var(--serif);color:var(--oak-deep);text-align:center;letter-spacing:.01em;
+  white-space:normal;word-break:normal;overflow-wrap:break-word;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;max-height:2.5em}
+.card .card-art{position:relative;flex:0 0 38%;margin:4px 6px 0;border-radius:3px;overflow:hidden;background:#2a1b10;
   box-shadow:0 0 0 1px var(--brass-lo),0 0 0 2px rgba(255,255,255,.35),inset 0 0 0 1px rgba(0,0,0,.4)}
 .card .card-art-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;pointer-events:none;user-select:none;-webkit-user-drag:none}
 .card .card-art::after{content:"";position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 12px rgba(0,0,0,.55);background:linear-gradient(180deg,transparent 70%,rgba(0,0,0,.35))}
-.card .ribbon{position:relative;z-index:2;align-self:center;margin:-9px 0 0;padding:2px 14px 3px;font:700 .62rem var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#fff4df;
+.card .ribbon{position:relative;z-index:2;align-self:center;margin:-9px 0 0;padding:2px 8px 3px;font:700 .62rem var(--sans);letter-spacing:.08em;text-transform:uppercase;color:#fff4df;
   clip-path:polygon(0 0,100% 0,92% 50%,100% 100%,0 100%,8% 50%);filter:drop-shadow(0 1px 1px rgba(0,0,0,.5))}
-.card .card-effect{flex:1;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;text-align:center;margin:2px 7px 2px;font:500 .68rem/1.13 var(--serif);color:var(--ink)}
-.card .card-status{position:relative;z-index:2;margin:0 6px 5px;padding:2px 4px;border-radius:3px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:700 .58rem var(--sans);letter-spacing:.05em;text-transform:uppercase;color:var(--ink-soft);background:rgba(90,58,34,.1)}
+.card .card-effect{flex:1;min-height:0;overflow:hidden;display:flex;align-items:center;justify-content:center;margin:2px 6px;font:500 .78rem/1.2 var(--sans);color:var(--ink)}
+.card .effect-copy{display:block;width:100%;text-align:left}
+.card .effect-copy strong{font-weight:800;color:var(--oak-deep)}
+.card .effect-mark{position:absolute;z-index:1;left:3px;bottom:3px;display:flex;align-items:center;gap:3px;padding:2px 4px;border:1px solid var(--brass-lo);border-radius:3px;background:#f4e7c8;color:var(--oak-deep);font:700 .65rem/1.2 var(--sans);pointer-events:none}
+.effect-mark svg{width:17px;height:14px;flex-shrink:0}
+.card .card-status{position:relative;z-index:2;margin:0 6px 5px;padding:2px 4px;border-radius:3px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font:700 .6rem/1.2 var(--sans);letter-spacing:0;color:var(--ink-soft);background:rgba(90,58,34,.1)}
 .card-attack .ribbon{background:linear-gradient(180deg,var(--red-hi),var(--red-lo))}
 .card-dodge .ribbon{background:linear-gradient(180deg,var(--blue-hi),var(--blue-lo))}
 .card-heal .ribbon{background:linear-gradient(180deg,#e9cd86,#9a7432);color:var(--oak-deep)}
@@ -486,14 +494,14 @@ details.fallback[open] summary{margin-bottom:6px}
 .card.drag-ghost.returning{transition:transform .18s ease}
 .card.unavailable > button{cursor:default}
 .card.unavailable .card-art-img{filter:saturate(.45) brightness(.8)}
-.card.unavailable .card-effect,.card.unavailable .card-name{opacity:.75}
-.card.unavailable .card-status{color:var(--ink-soft);background:rgba(43,30,16,.12)}
+.card.unavailable .card-effect,.card.unavailable .card-name{opacity:1}
+.card.unavailable .card-status{color:var(--oak-dark);background:#e9d6ae}
 .card.targeting .rim{background:linear-gradient(145deg,#ffd0c8,#c2454c 30%,#6e1f25 55%,#c2454c 80%,#ffd0c8);box-shadow:0 12px 20px rgba(0,0,0,.6),0 0 24px rgba(209,69,60,.7)}
 
 .card.selected .rim{background:linear-gradient(145deg,#ffd0c8,#c2454c 30%,#6e1f25 55%,#c2454c 80%,#ffd0c8);box-shadow:0 12px 20px rgba(0,0,0,.6),0 0 0 3px #ffb0a6,0 0 22px rgba(209,69,60,.7)}
 .card.selected .card-status{background:var(--red);color:#fff4df}
 .card.discardable:not(.selected) .card-status{background:rgba(53,93,125,.18);color:var(--blue-lo)}
-.hand > .card:is(:hover,:focus-within,.selected,.targeting) .card-art{flex-basis:34%}
+.hand > .card:is(:hover,:focus-within,.selected,.targeting) .card-art{flex-basis:29%}
 .hand > .card.selected,.hand > .card.targeting{transform:translateY(var(--inspect-lift,-44px)) rotate(0deg) scale(1.06)}
 .card.selected .card-status::before{content:"✓ "}
 button[aria-pressed=true]{outline:none}
@@ -586,11 +594,13 @@ button[aria-pressed=true]{outline:none}
   .card .plate{margin:3px 3px 0;padding:2px}
   .card .plate .glyph{display:none}
   .card .card-name{font-size:.68rem}
-  .card .card-art{flex-basis:43%;margin:3px 4px 0}
-  .hand > .card:is(:hover,:focus-within,.selected,.targeting) .card-art{flex-basis:26%}
+  .card .card-art{flex-basis:28%;margin:3px 4px 0}
+  .hand > .card:is(:hover,:focus-within,.selected,.targeting) .card-art{flex-basis:22%}
   .card .ribbon{font-size:.48rem;padding:1px}
-  .card .card-effect{font-size:.55rem;margin:2px 4px}
-  .card .card-status{font-size:.45rem;padding:1px;margin:0 3px 3px}
+  .card .card-effect{font-size:.6rem;line-height:1.15;margin:2px 4px}
+  .card .effect-mark{font-size:.48rem;padding:1px 2px;gap:1px}
+  .effect-mark svg{width:12px;height:10px}
+  .card .card-status{font-size:.48rem;padding:1px;margin:0 3px 3px}
 }
 /* Portrait prioritises actionable state. The same fan gets the full width;
    HUD/controls occupy a separate small row below it, never squeeze it. */
@@ -647,8 +657,8 @@ button[aria-pressed=true]{outline:none}
   .card .plate .glyph{display:none}
   .card .card-name{font-size:.63rem;text-align:left;width:34px;max-height:none;display:block;overflow:visible}
   .card:is(:hover,:focus-within,.selected,.targeting) .card-name{width:100%;text-align:center;font-size:.76rem}
-  .card .card-art{flex-basis:43%;margin:3px 4px 0}
-  .card .card-effect{font-size:.6rem;margin:2px 4px}
+  .card .card-art{flex-basis:34%;margin:3px 4px 0}
+  .card .card-effect{font-size:.66rem;line-height:1.15;margin:2px 4px}
   .card .ribbon{font-size:.52rem;padding:1px}
   .card .card-status{font-size:.48rem;margin:0 3px 3px;padding:1px}
   .grip-hand{z-index:35;transform:none}
@@ -661,11 +671,156 @@ button[aria-pressed=true]{outline:none}
   details.fallback summary{font-size:.65rem}
 }
 
+/* Four-seat perspective: clockwise neighbours stay on their table edges.
+   Empty/eliminated stations retain their places; only the viewer rotates. */
+.far.around-table{inset:0;display:block;pointer-events:none}
+.around-table > .knight-stand{position:absolute;pointer-events:none}
+.around-table .seat{pointer-events:auto}
+.ctl-group.targeting .btn{gap:0}
+.around-table .position-across{left:50%;top:max(4%,calc(var(--crop-y,0px) + 30px));transform:translateX(-50%)}
+.around-table .position-left,.around-table .position-right{top:39%;transform:translate(-50%,-50%)}
+.around-table .position-left{left:max(calc(var(--crop-x,0px) + 104px),12%)}
+.around-table .position-right{right:max(calc(var(--crop-x,0px) + 104px),12%);transform:translate(50%,-50%)}
+.around-table .position-left .seat,.around-table .position-right .seat{width:180px}
+.around-table .position-left .knight-fig,.around-table .position-right .knight-fig{height:clamp(80px,12dvh,142px)}
+.around-table .position-left .backs,.around-table .position-right .backs{display:none}
+.around-table .seat.pick::after,body[data-drag] .around-table .seat.drop-ok::after{top:-24px;bottom:auto}
+.stage.seats-four > .chronicle{left:64%;top:10%;width:22%}
+.stage.seats-four .pile-stack.discard{display:none}
+.stage.seats-four > .centerpiece,.stage.seats-four:has(> .zone.has-actions) > .centerpiece{left:50%;top:44%}
+.seats-four .medallion{width:64px;height:64px}
+.seats-four .medallion .countdown{font-size:1rem}
+.seats-four .phase-banner{font-size:1rem;padding:6px 18px}
+.stage.seats-four > .victory{top:55%}
+.stage.seats-four > .zone,.stage.seats-four > .zone.has-actions{top:55%}
+.stage.seats-four > .zone.has-actions{width:620px;max-width:48%;flex-direction:row;gap:12px}
+.seats-four .zone.has-actions .zone-head{flex:1;min-width:0}
+.seats-four .zone.has-actions .zone-actions{flex:0 0 180px;justify-content:center}
+@media(max-height:540px) and (orientation:landscape),(orientation:portrait) and (max-width:760px){
+  .battle:has(.seats-four) .mini-controls .targeting > .ctl-note{display:none}
+  .battle:has(.seats-four) .mini-controls .targeting .ctl-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px}
+  .battle:has(.seats-four) .mini-controls .targeting .target-team{display:none}
+  .battle:has(.seats-four) .mini-controls .targeting .btn{min-width:0;padding-left:4px;padding-right:4px}
+}
+@media(max-height:540px) and (orientation:landscape){
+  .battle:has(.seats-four) .mini-controls:has(.targeting){top:calc(var(--side-y,76%) + 8px);max-height:90px}
+  .around-table .position-across{top:calc(var(--crop-y,0px) + 28px)}
+  .around-table .position-left,.around-table .position-right{top:calc(var(--crop-y,0px) + 148px)}
+  .around-table .position-left{left:90px}
+  .around-table .position-right{right:90px}
+  .around-table .position-left .seat,.around-table .position-right .seat{width:138px}
+  .around-table .position-left .knight-fig,.around-table .position-right .knight-fig{height:50px}
+  .stage.seats-four > .chronicle{left:72%;top:calc(var(--crop-y,0px) + 52px);width:26%}
+  .stage.seats-four > .centerpiece,.stage.seats-four:has(> .zone.has-actions) > .centerpiece{left:30%;top:calc(var(--crop-y,0px) + 178px);gap:3px 7px}
+  .seats-four .medallion{width:46px;height:46px}
+  .seats-four .turn-line{max-width:112px;font-size:.62rem;padding:1px 5px}
+  .seats-four .medallion .countdown{font-size:.8rem}
+  .seats-four .phase-banner{font-size:.72rem;padding:4px 12px}
+  .stage.seats-four > .zone,.stage.seats-four > .zone.has-actions{left:59.5%;top:calc(var(--crop-y,0px) + 178px);width:38%;max-width:38%;gap:5px}
+  .battle:has(.card.targeting) .stage.seats-four > .zone.z-cast{top:calc(var(--crop-y,0px) + 164px)}
+  .seats-four .zone.has-actions .zone-actions{flex:0 0 105px}
+  .seats-four .zone.has-actions .zone-icon{display:none}
+  .stage.seats-four > .victory{left:59.5%;top:calc(var(--crop-y,0px) + 178px);width:38%;max-width:38%;padding:6px 8px}
+  .seats-four .victory .vt{font-size:1rem}
+  .seats-four .victory .vs{font-size:.65rem}
+}
+@media(orientation:portrait) and (max-width:760px){
+  .around-table .position-across{top:48px;width:142px}
+  .around-table .position-across .knight-fig{height:52px;margin-bottom:-8px}
+  .around-table .position-across .seat{width:142px}
+  .around-table .position-left,.around-table .position-right{top:238px;transform:translateX(-50%)}
+  .around-table .position-left{left:64px}
+  .around-table .position-right{right:64px;transform:translateX(50%)}
+  .around-table .position-left .seat,.around-table .position-right .seat{width:108px}
+  .around-table .position-left .knight-fig,.around-table .position-right .knight-fig{height:40px;margin-bottom:-8px}
+  .stage.seats-four > .centerpiece,.stage.seats-four:has(> .zone.has-actions) > .centerpiece{left:50%;top:28%;gap:4px 8px}
+  .seats-four .medallion{width:50px;height:50px}
+  .seats-four .phase-banner{font-size:.78rem;padding:5px 15px}
+  .stage.seats-four > .chronicle{left:32%;right:32%;top:32%;width:auto}
+  .seats-four .chronicle li{padding:3px 5px;font-size:.6rem}
+  .stage.seats-four .pile{top:68px}
+  .stage.seats-four .pile.draw{left:10px}
+  .stage.seats-four .pile.discard{left:auto;right:10px}
+  .stage.seats-four > .zone,.stage.seats-four > .zone.has-actions{left:50%;top:50%;width:calc(100% - 28px);max-width:none;transform:translate(-50%,-50%);padding:8px;gap:5px}
+  .seats-four .zone.has-actions .zone-actions{flex:0 0 110px}
+  .stage.seats-four > .victory{top:50%;max-width:calc(100% - 28px);padding:8px 12px}
+  .seats-four .victory .vt{font-size:1.2rem}
+  .seats-four .victory .vs{font-size:.7rem}
+  .seats-four .zone .zone-title{font-size:.76rem}
+  .seats-four .zone .zone-hint{font-size:.65rem}
+  .seats-four .zone .zone-expiry{font-size:.6rem}
+}
+/* Novice guidance reuses the existing scene, card art and shield shapes. */
+.zone-actions > .ctl-note{display:none}
+@media(max-height:540px) and (orientation:landscape){
+  .stage > .zone{top:45.5%}
+  .stage > .zone.has-actions{left:60%;top:45.5%;max-width:56%}
+  .zone .zone-expiry{font-size:.6rem}
+  .far .seat-tags{display:flex;padding:0 6px 3px;min-height:0}
+  .far .seat-tags .tag:not(.relationship){display:none}
+  .far .relationship{font-size:.58rem;padding:0 4px}
+}
+
+@media(min-width:761px) and (min-height:541px){.stage > .zone:not(.has-actions){max-width:32%}}
+@media(min-width:761px) and (max-width:1450px) and (min-height:541px){.stage > .centerpiece{left:24%}.stage:has(> .zone.has-actions) > .centerpiece{left:18%}}
+.topbar .help-link{min-height:44px;min-width:76px;padding:10px 12px;white-space:nowrap;flex-shrink:0}
+.team-identity{padding:5px 9px;border:1px solid var(--brass-hi);border-radius:5px;background:rgba(20,12,6,.85);font-weight:700;color:#fff4df;white-space:nowrap}
+.team-overview{font-weight:700;line-height:1.5}
+.relationship{font-weight:700;letter-spacing:.02em}
+.tag.ally{background:#294833;color:#f2ffe9}.tag.opponent{background:#3c2b20;color:#fff4df}
+.seat.responding{box-shadow:0 0 0 3px #fff0b8,0 0 0 6px #8c6229,0 0 24px rgba(255,229,156,.6)}
+.zone-expiry{font-size:.7rem;line-height:1.3;margin-top:3px;color:#49301d}
+.quick-start{max-width:100%;margin:0 auto 22px;padding:18px 22px}
+.quick-start h2{font-size:1.2rem}
+.quick-start .team-overview{margin:6px 0 12px}
+.learn-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.learn-step{padding:12px;border-radius:6px;background:rgba(255,255,255,.3);border:1px solid rgba(90,58,34,.25)}
+.learn-step h3,.reference-card h3{margin:0 0 8px;font-size:.94rem;color:var(--oak-dark)}
+.learn-step p,.reference-card p{margin:8px 0 0;font-size:.84rem;line-height:1.45}
+.learn-flow{display:flex;align-items:center;justify-content:center;gap:8px;min-height:64px;font-weight:700}
+.learn-flow img{width:46px;height:62px;object-fit:cover;border-radius:4px;border:1px solid var(--brass-lo)}
+.learn-seat{max-width:80px;padding:6px;border:1px solid var(--brass-lo);border-radius:5px;text-align:center;font-size:.78rem;background:var(--ivory)}
+.rules-timing{font-size:.84rem;line-height:1.5}
+.card-reference summary{cursor:pointer;font-weight:700;padding:8px 0}
+.reference-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding-top:8px}
+.reference-card{display:flex;gap:12px;align-items:flex-start;border-top:1px solid var(--parch-edge);padding-top:10px}
+.reference-card img{width:64px;height:80px;object-fit:cover;border-radius:4px;flex-shrink:0}
+.help-dialog{width:min(900px,calc(100vw - 28px));max-height:calc(100dvh - 28px);padding:20px;border:2px solid var(--brass);border-radius:8px;color:var(--ink);background:var(--ivory);box-shadow:0 12px 60px #000;overflow:auto;overscroll-behavior:contain}
+.help-dialog::backdrop{background:rgba(12,7,3,.75)}
+.help-header{position:sticky;top:-20px;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:12px;background:var(--ivory);padding:8px 0}
+.help-header h2{margin:0;font:700 1.4rem var(--serif)}
+.help-header button{min-height:44px;flex-shrink:0}
+.lobby-dialog{width:min(420px,calc(100vw - 28px))}
+.lobby-dialog p{margin:8px 0 18px;line-height:1.5}
+.lobby-dialog-actions{display:flex;justify-content:flex-end;gap:10px}
+.lobby-dialog-actions .btn{min-height:44px;min-width:44px}
+.lobby-dialog-actions .btn.ghost{color:var(--oak-dark);border-color:var(--brass-lo);background:rgba(255,250,235,.6)}
+.help-running{margin:8px 0;font-weight:700}
+#help-clock{font-weight:700;font-variant-numeric:tabular-nums}
+.help-context{padding:12px;border-left:4px solid var(--brass-lo);background:#e5d2a9}
+.help-context p{margin:6px 0 0}
+.expiry-note{font-size:.85rem}
+@media(max-width:900px){.learn-grid{grid-template-columns:1fr 1fr}}
+@media(orientation:portrait) and (max-width:760px){
+  .topbar .crest,.topbar strong,.topbar .room-code,.topbar .mode-pill{display:none}
+  .topbar{justify-content:space-between;gap:5px}
+  .topbar .team-identity{font-size:.72rem;padding:5px}
+  .topbar .help-link{font-size:.82rem;min-width:66px;padding:8px}
+  .topbar .lobby-link{font-size:.82rem;min-width:66px;padding:8px 10px}
+  .stage > .zone .zone-expiry{font-size:.58rem}
+  .quick-start{padding:14px;margin-top:0}
+  .quick-start h2{font-size:1.05rem}
+  .reference-grid{grid-template-columns:1fr}
+}
+@media(max-width:460px){.learn-grid{grid-template-columns:1fr}.help-header h2{font-size:1.05rem}}
+
 `;
 
 const SCRIPT = `
 (function () {
   var NS = "http://www.w3.org/2000/svg";
+  var DECISION_MS = ${CARD_CLASH_DEADLINE_MS};
+  var DECISION_SECONDS = DECISION_MS / 1000;
   function s(tag, attrs, kids) {
     var n = document.createElementNS(NS, tag);
     if (attrs) for (var k in attrs) n.setAttribute(k, attrs[k]);
@@ -765,14 +920,14 @@ const SCRIPT = `
 
   // ---- Static card data ---------------------------------------------------
   var CARD_INFO = {
-    attack: { name: "Attack", category: "Strike", effect: "Strike a foe. They must Dodge or lose 1 HP." },
-    dodge: { name: "Dodge", category: "Defence", effect: "Response: turn aside an Attack or Arrow Volley." },
-    heal: { name: "Heal", category: "Blessing", effect: "Restore 1 HP to yourself, or save a dying knight." },
-    seize: { name: "Seize", category: "Ploy", effect: "Take a random card from a target's hand." },
-    disarm: { name: "Disarm", category: "Ploy", effect: "A target discards a random card, revealed to all." },
-    insight: { name: "Insight", category: "Counsel", effect: "Draw 2 extra cards." },
-    war_cry: { name: "War Cry", category: "Command", effect: "All others play an Attack or lose 1 HP." },
-    arrow_volley: { name: "Arrow Volley", category: "Command", effect: "All others play a Dodge or lose 1 HP." },
+    attack: { name: "Attack", category: "Target", effect: "Target: Dodge or lose 1 HP.", help: "On your turn, target any other living player, including an ally. They must play Dodge or lose 1 HP. Normally one Attack per turn; the 1v2 host may use two." },
+    dodge: { name: "Dodge", category: "Block", effect: "Block Attack or Arrow Volley.", help: "Use only when you are asked to answer Attack or Arrow Volley. Tap Dodge or its response button. It prevents that hit; it is not a normal-turn attack." },
+    heal: { name: "Heal", category: "Heal / Rescue", effect: "+1 HP: self or rescue.", help: "On your turn, restore 1 HP to yourself, up to maximum HP. During rescue, only the requested player may play Heal on the dying player. You cannot normally heal another player." },
+    seize: { name: "Seize", category: "Take card", effect: "Take 1 random card from target.", help: "On your turn, choose another living player with cards, including an ally. One random card moves to your hand; the card identity remains private to the affected players." },
+    disarm: { name: "Disarm", category: "Target", effect: "Target discards 1 random card.", help: "On your turn, choose another living player with cards, including an ally. One random card is discarded and revealed. This does not deal damage." },
+    insight: { name: "Insight", category: "Draw", effect: "Draw 2 cards.", help: "On your turn, tap the card or drop it on the table to draw 2 cards. No player target or defensive response is needed." },
+    war_cry: { name: "War Cry", category: "All others", effect: "Play Attack or lose 1 HP.", help: "On your turn, affect every other living player, including allies. Each is asked in order to play Attack or lose 1 HP. Their Attack is a response, not another attack. This does not consume your normal Attack allowance." },
+    arrow_volley: { name: "Arrow Volley", category: "All others", effect: "Play Dodge or lose 1 HP.", help: "On your turn, affect every other living player, including allies. Each is asked in order to play Dodge or lose 1 HP. The caster is excluded." },
   };
   var CARD_NAMES = {};
   for (var key in CARD_INFO) CARD_NAMES[key] = CARD_INFO[key].name;
@@ -791,7 +946,7 @@ const SCRIPT = `
   var code = new URLSearchParams(location.search).get("room");
   var resumeCode = new URLSearchParams(location.search).get("resume");
   var room = null, match = null, es = null, esCode = null;
-  var busy = false, targeting = null, selected = {}, chosenMode = "1v1";
+  var busy = false, targeting = null, targetingCardId = null, selected = {}, chosenMode = "1v1";
   var message = "", deadlineTimer = null, deadlineRefetch = null, requestSeq = 0;
   // Type of the card being dragged (never a card id — cards of a type are
   // fungible to the engine). Mirrored to body[data-drag] purely for CSS.
@@ -854,7 +1009,7 @@ const SCRIPT = `
         var changed = !match || !st.ok || st.body.version !== match.version;
         if (st.ok) detectCombatFx(st.body);
         match = st.ok ? st.body : null;
-        if (changed) { targeting = null; selected = {}; }
+        if (changed) { clearTargeting(); selected = {}; }
         if (!st.ok) message = st.body.error === "network_error" ? "Connection problem — will refresh when reconnected." : (st.body.error || "Could not load the match");
         if (changed || forceRender === true || !document.getElementById("hand")) render();
       });
@@ -902,10 +1057,19 @@ const SCRIPT = `
         else if (e === "transition_rejected") message = "That move is not allowed: " + String(r.body.detail || "illegal action").replace(/_/g, " ") + ".";
         else message = (e || "Request failed").replace(/_/g, " ");
       }
-      targeting = null; selected = {};
+      clearTargeting(); selected = {};
       busy = false;
       return refresh(true);
     });
+  }
+
+  // Targeting actions are type-based on the server; visual selection belongs
+  // to exactly one physical card in this viewer's hand.
+  function clearTargeting() { targeting = null; targetingCardId = null; }
+  function toggleTargetCard(type, cardId) {
+    if (targeting === type && targetingCardId === cardId) clearTargeting();
+    else { targeting = type; targetingCardId = cardId; }
+    render();
   }
 
   function count(hand, type) { return hand.filter(function (c) { return c.type === type; }).length; }
@@ -1199,14 +1363,56 @@ const SCRIPT = `
   // Anatomy: brass rim > dark inner bed > ornamental corners > raised title
   // plate > recessed art window (painting) > type ribbon > rules text >
   // status footer. Only the painting is an image; all text is live HTML.
+  function effectText(text) {
+    var key = /^(Dodge|Attack|Arrow Volley|1 HP|2 cards|1 random card)$/;
+    return text.split(/(Dodge|Attack|Arrow Volley|1 HP|2 cards|1 random card)/g).filter(Boolean).map(function (part) {
+      return key.test(part) ? el("strong", null, [part]) : part;
+    });
+  }
+  function effectBadge(type) {
+    if (type !== "seize" && type !== "insight") return "";
+    var cards = svg("0 0 28 22", [
+      s("rect", { x: "2", y: "2", width: "11", height: "16", rx: "1", fill: "none", stroke: "currentColor", "stroke-width": "2" }),
+      s("rect", { x: "9", y: "5", width: "11", height: "16", rx: "1", fill: "#f4e7c8", stroke: "currentColor", "stroke-width": "2" }),
+      s("path", { d: "M17 3 H26 M23 0 L26 3 L23 6", fill: "none", stroke: "currentColor", "stroke-width": "2" }),
+    ]);
+    return el("span", { class: "effect-mark", "aria-hidden": "true" }, [cards, type === "insight" ? "Draw 2" : "Take 1"]);
+  }
+  // Explanations are presentation only: computeAvailability still controls play.
+  function cardUseLabel(me, type, playable, isTargeting, action) {
+    if (match.matchResult.status === "complete") return "Match over";
+    if (me.eliminated) return "Eliminated";
+    if (playable) {
+      if (isTargeting) return "Choose target";
+      if (action && action.kind === "target") return "Choose player";
+      return match.pending ? "Play " + CARD_NAMES[type] : "Tap to play";
+    }
+    var pending = match.pending;
+    if (pending) {
+      var seat = pending.kind === "attack_response" ? pending.target : pending.kind === "group_response" ? pending.context.queue[0] : pending.queue[0];
+      if (seat !== me.seat) return "Wait for seat " + seat;
+      return "Needs " + (pending.kind === "attack_response" ? "Dodge" : pending.kind === "group_response" ? CARD_NAMES[pending.context.requiredResponseType] : "Heal");
+    }
+    if (type === "dodge") return "Response only";
+    if (match.activeSeat !== me.seat) return "Wait for turn";
+    if (type === "heal" && me.hp >= me.maxHp) return "Full HP";
+    if (type === "attack") {
+      var limit = match.mode === "1v2" && me.seat === 1 ? 2 : 1;
+      if (match.normalAttacksUsedThisTurn >= limit) return "Attack limit used";
+      return "No target";
+    }
+    if (type === "seize" || type === "disarm") return others(me).length ? "Empty hands" : "No target";
+    return "Unavailable";
+  }
+
   function cardFace(type, statusText) {
     var info = CARD_INFO[type] || { name: type, category: type, effect: "" };
     var art = ART(type);
     return [
       el("span", { class: "plate" }, [cardGlyph(type), el("span", { class: "card-name" }, [info.name])]),
-      el("span", { class: "card-art" }, [art ? el("img", { class: "card-art-img", src: art, alt: "", "aria-hidden": "true", loading: "lazy", draggable: "false", style: "object-position:" + (ART_POS[type] || "50% 40%") }, []) : ""]),
+      el("span", { class: "card-art" }, [art ? el("img", { class: "card-art-img", src: art, alt: "", "aria-hidden": "true", loading: "lazy", draggable: "false", style: "object-position:" + (ART_POS[type] || "50% 40%") }, []) : "", effectBadge(type)]),
       el("span", { class: "ribbon" }, [info.category]),
-      el("span", { class: "card-effect" }, [info.effect]),
+      el("span", { class: "card-effect" }, [el("span", { class: "effect-copy" }, effectText(info.effect))]),
       el("span", { class: "card-status" }, [statusText]),
     ];
   }
@@ -1228,15 +1434,17 @@ const SCRIPT = `
       return cardShell(c.type, isSel ? "selected" : "discardable", b);
     }
     var action = playable ? actionForCardType(me, c.type) : null;
-    var isTargeting = action && action.kind === "target" && targeting === action.action;
-    var status = !playable ? "Not now" : isTargeting ? "Choose a target" : action && action.kind === "target" ? "Drag to a foe" : "Tap to play";
+    var isTargeting = action && action.kind === "target" && targeting === action.action && targetingCardId === c.id;
+    var status = cardUseLabel(me, c.type, playable, isTargeting, action);
     var props = {
       id: "cardplay-" + c.id,
+      "aria-pressed": action && action.kind === "target" ? String(!!isTargeting) : undefined,
       disabled: busy || !playable || !action,
-      "aria-label": info.name + ": " + info.effect + (playable ? "" : " (not playable now)"),
+      "aria-label": info.name + ": " + (info.help || info.effect) + " " + status + ".",
+      title: info.name + ": " + (info.help || info.effect) + " " + status + ".",
       onclick: function () {
         if (!playable || busy || !action) return;
-        if (action.kind === "target") { targeting = targeting === action.action ? null : action.action; render(); }
+        if (action.kind === "target") toggleTargetCard(action.action, c.id);
         else send(action.action);
       },
     };
@@ -1296,16 +1504,19 @@ const SCRIPT = `
       var pool = living.filter(function (p) { return targeting === "play_attack" || p.handSize > 0; });
       var row = [];
       pool.forEach(function (p) {
-        row.push(el("button", { id: "target-" + p.seat, class: "btn gold small", disabled: busy, onclick: function () { var t = targeting; send(t, { targetSeat: p.seat }); } }, ["Seat " + p.seat + " (Team " + p.team + ")"]));
+        row.push(el("button", { id: "target-" + p.seat, class: "btn gold small", disabled: busy, "aria-label": "Target seat " + p.seat + ", " + teamName(p.team), title: teamName(p.team), onclick: function () { var t = targeting; send(t, { targetSeat: p.seat }); } }, ["Seat " + p.seat, el("span", { class: "target-team" }, [" (Team " + p.team + ")"])]));
       });
       if (pool.length === 0) row.push(el("span", { class: "ctl-note muted" }, ["No valid targets."]));
-      row.push(el("button", { id: "cancel-target", class: "btn ghost small", onclick: function () { targeting = null; render(); } }, ["Cancel"]));
+      row.push(el("button", { id: "cancel-target", class: "btn ghost small", onclick: function () { clearTargeting(); render(); } }, ["Cancel"]));
       return [group("targeting", [
         el("p", { class: "ctl-note" }, ["Choose a highlighted seat."]),
         el("div", { class: "ctl-row" }, row),
       ])];
     }
-    var t = function (type) { return function () { targeting = targeting === type ? null : type; render(); }; };
+    var t = function (type) { return function () {
+      var card = hand.filter(function (c) { return SEAT_TARGETED[c.type] === type; })[0];
+      if (card) toggleTargetCard(type, card.id);
+    }; };
     var quick = el("div", { class: "ctl-row" }, [
       btn("play_attack", "Attack", t("play_attack"), !avail.attack, "ghost small"),
       btn("play_heal", "Heal (self)", function () { send("play_heal"); }, !avail.heal, "ghost small"),
@@ -1319,6 +1530,116 @@ const SCRIPT = `
       el("div", { class: "ctl-row" }, [btn("end_turn", "End Turn", function () { send("end_turn"); }, false, "primary small")]),
       el("details", { class: "fallback" }, [el("summary", null, ["Quick actions (keyboard / accessibility)"]), quick]),
     ])];
+  }
+
+  function teamName(team) { return "Team " + team + (team === "A" ? " (Red)" : " (Blue)"); }
+  function relationship(team, seat, ownSeat, mode) {
+    if (seat === ownSeat) return "You";
+    if (!ownSeat) return "Player";
+    return team === teamFor(mode, ownSeat) ? "Ally" : "Opponent";
+  }
+  function teamSummary(mode, seat) {
+    var groups = mode === "2v2" ? "A / Red: seats 1 + 4. B / Blue: seats 2 + 3."
+      : mode === "1v2" ? "A / Red: seat 1. B / Blue: seats 2 + 3." : "A / Red: seat 1. B / Blue: seat 2.";
+    return (seat ? "You: seat " + seat + " — " + teamName(teamFor(mode, seat)) + ". " : "") + groups;
+  }
+  function decisionGuide() {
+    if (!match) return { title: "Before you Ready", detail: "Learn the four steps below. Dragging is optional: click or tap works too.", expiry: "Each decision has up to " + DECISION_SECONDS + " seconds once play begins." };
+    if (match.matchResult.status === "complete") return { title: "The battle is over", detail: "Winner: " + teamName(match.matchResult.winningTeam), expiry: "No decision timer is running." };
+    var pending = match.pending, me = viewer();
+    var owner = match.deadline ? match.deadline.responderSeat : match.activeSeat;
+    var own = me && owner === me.seat;
+    var who = own ? "You" : "Seat " + owner;
+    if (pending && pending.kind === "attack_response") return {
+      title: who + " must respond — Attack", detail: "Seat " + pending.attacker + " attacked seat " + pending.target + ". Play Dodge or take 1 damage.",
+      expiry: "Timeout: seat " + owner + " loses 1 HP."
+    };
+    if (pending && pending.kind === "group_response") {
+      var ctx = pending.context, need = CARD_NAMES[ctx.requiredResponseType];
+      return { title: who + " must respond — " + CARD_NAMES[ctx.cardType], detail: "Play " + need + " or take 1 damage. Group attacks affect allies too.", expiry: "Timeout: seat " + owner + " loses 1 HP." };
+    }
+    if (pending && pending.kind === "dying_rescue") return { title: who + " may rescue seat " + pending.dyingSeat, detail: "Play Heal to restore 1 HP, or Decline. Only the requested player can respond.", expiry: "Timeout: decline this rescue opportunity." };
+    if (match.turnPhase === "discard") {
+      var player = match.players.filter(function (p) { return p.seat === match.activeSeat; })[0];
+      var excess = Math.max(0, player.handSize - Math.max(0, player.hp));
+      return { title: who + ": discard " + excess + " card" + (excess === 1 ? "" : "s"), detail: "Hand " + player.handSize + ", HP " + player.hp + ". Select excess cards, then confirm Discard.", expiry: "Timeout: randomly discard remaining excess." };
+    }
+    return { title: own ? "Your turn — play a card or End Turn" : "Seat " + match.activeSeat + " is playing — wait",
+      detail: own ? (targeting ? "Choose a lit seat for " + (targeting === "play_attack" ? "Attack" : targeting === "play_seize" ? "Seize" : "Disarm") + ". Allies are legal targets too." : "Attack: drag onto a seat, or tap then choose. Direct cards: table.") : "You act only on your turn, or when asked to defend or rescue.",
+      expiry: "Timeout: end play, then discard excess." };
+  }
+  function guideNodes() {
+    var guide = decisionGuide();
+    return [el("strong", null, [guide.title]), el("p", null, [guide.detail]), el("p", { class: "expiry-note" }, [guide.expiry])];
+  }
+  function cardReference() {
+    return el("details", { class: "card-reference" }, [el("summary", null, ["Eight-card reference — when, target, effect and response"]),
+      el("div", { class: "reference-grid" }, Object.keys(CARD_INFO).map(function (type) {
+        var info = CARD_INFO[type];
+        return el("article", { class: "reference-card" }, [el("img", { src: ART(type), alt: "", loading: "lazy", draggable: "false" }, []), el("div", null, [el("h3", null, [info.name]), el("p", null, [info.help])])]);
+      }))]);
+  }
+  function quickStart() {
+    function picture(type) { return el("img", { src: ART(type), alt: CARD_NAMES[type], loading: "lazy", draggable: "false" }, []); }
+    function step(title, left, right, text) { return el("article", { class: "learn-step" }, [el("h3", null, [title]), el("div", { class: "learn-flow" }, [left, el("span", { "aria-hidden": "true" }, ["→"]), right]), el("p", null, [text])]); }
+    return el("div", null, [
+      el("div", { class: "learn-grid" }, [
+        step("1. Choose a target", picture("attack"), el("span", { class: "learn-seat" }, ["Another seat"]), "Your turn: drag Attack onto a seat, or click Attack then click a target. Allies can be targeted too."),
+        step("2. Respond now", picture("attack"), picture("dodge"), "When attacked, tap Dodge or use the Dodge button. You do not wait for your own turn. No Dodge or no response costs 1 HP."),
+        step("3. Play on the table", picture("insight"), el("span", { class: "learn-seat" }, ["Table"]), "Your turn: tap a lit Insight, Heal, War Cry or Arrow Volley, or drag it to the table. Normal Heal targets only yourself."),
+        step("4. Discard excess", el("span", { class: "learn-seat" }, ["5 cards / 2 HP"]), el("span", { class: "learn-seat" }, ["Discard 3"]), "End Turn finishes playing. If cards exceed current HP, select only the excess and confirm Discard. Timeout discards excess randomly."),
+      ]),
+      el("p", { class: "rules-timing" }, ["Up to " + DECISION_SECONDS + "s for each action, response, rescue or discard decision. Successful effects give the active player a fresh action window. Partial discards do not reset the clock. Eliminate the opposing team to win."]),
+      cardReference(),
+    ]);
+  }
+  function preparationGuide() {
+    return el("section", { class: "plaque quick-start", "aria-labelledby": "quick-start-title" }, [
+      el("h2", { id: "quick-start-title" }, ["Before you Ready — how to play"]),
+      el("p", { class: "team-overview" }, [teamSummary(room.mode, room.viewerSeat)]), quickStart(),
+    ]);
+  }
+  var helpDialog = null;
+  function updateHelp() {
+    if (!helpDialog || !helpDialog.open) return;
+    var target = document.getElementById("help-context"), guide = decisionGuide();
+    var signature = [guide.title, guide.detail, guide.expiry].join("|");
+    if (target.getAttribute("data-context") !== signature) {
+      target.replaceChildren.apply(target, guideNodes());
+      target.setAttribute("data-context", signature);
+    }
+    document.getElementById("help-team").textContent = room ? teamSummary(room.mode, room.viewerSeat) : "";
+    updateHelpClock();
+  }
+  function updateHelpClock() {
+    var clock = document.getElementById("help-clock");
+    if (!clock || !helpDialog.open) return;
+    var deadline = match && match.matchResult.status !== "complete" && match.deadline;
+    clock.textContent = deadline ? "Seat " + deadline.responderSeat + " decision: " + (Math.max(0, deadline.expiresAt - Date.now()) / 1000).toFixed(1) + "s remaining" : "No active decision timer";
+  }
+  function openHelp() {
+    if (!helpDialog) {
+      helpDialog = el("dialog", { id: "game-help", class: "help-dialog", "aria-labelledby": "help-title", "aria-describedby": "help-running" }, [
+        el("header", { class: "help-header" }, [el("h2", { id: "help-title" }, ["How to play Card Clash"]), el("button", { id: "help-close", class: "btn gold", onclick: function () { helpDialog.close(); } }, ["Close help"])]),
+        el("p", { id: "help-running", class: "help-running" }, ["The match and timers continue while Help is open. Close Help to act."]),
+        el("p", { id: "help-clock", role: "timer", "aria-live": "off" }, []),
+        el("section", { id: "help-context", class: "help-context", "aria-live": "polite", "aria-atomic": "true" }, []),
+        el("p", { id: "help-team", class: "team-overview" }, []), quickStart(),
+      ]);
+      helpDialog.addEventListener("keydown", function (event) {
+        if (event.key !== "Tab") return;
+        var controls = Array.prototype.filter.call(helpDialog.querySelectorAll("button,summary,a[href],[tabindex]"), function (node) { return !node.disabled && node.tabIndex >= 0 && node.getClientRects().length; });
+        var first = controls[0], last = controls[controls.length - 1];
+        if (!first) { event.preventDefault(); return; }
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      });
+      helpDialog.addEventListener("close", function () { var trigger = document.getElementById("help-open"); if (trigger) trigger.focus({ preventScroll: true }); });
+      document.body.appendChild(helpDialog);
+    }
+    helpDialog.showModal();
+    updateHelp();
+    document.getElementById("help-close").focus();
   }
 
   // ---- Lobby: tournament entrance -----------------------------------------
@@ -1351,7 +1672,7 @@ const SCRIPT = `
         crest("crest"),
         el("h1", { class: "title" }, ["Card Clash"]),
         el("div", { class: "title-rule" }, ["The Knight's War Table"]),
-        el("p", { class: "subtitle" }, ["Gather your house, draw your hand and outwit rival knights across the table — every move must be made within ten seconds."]),
+        el("p", { class: "subtitle" }, ["Gather your house, draw your hand and outwit rival knights across the table — up to " + DECISION_SECONDS + " seconds for each decision."]),
       ]),
       error(),
       resumeCode ? el("p", { class: "subtitle" }, [el("a", { id: "resume-room", class: "btn gold small", href: "/card-clash?room=" + encodeURIComponent(resumeCode) }, ["Return to room " + resumeCode]), " Your existing match keeps its state; active timers continue."]) : "",
@@ -1401,9 +1722,9 @@ const SCRIPT = `
           el("span", { class: "bcrest" }, [houseShield(t)]),
           el("span", { class: "bseat" }, ["Seat " + n]),
           el("span", { class: "btags" }, [
-            el("span", { class: "tag" }, ["Team " + t]),
+            el("span", { class: "tag" }, [teamName(t)]),
+            el("span", { class: "tag relationship" }, [relationship(t, n, room.viewerSeat, room.mode)]),
             n === 1 ? el("span", { class: "tag host" }, ["Host"]) : "",
-            me ? el("span", { class: "tag you" }, ["You"]) : "",
           ]),
           st ? el("span", { class: "seal " + (st.ready ? "ready" : "notready") }, [st.ready ? "Ready" : "Not ready"]) : el("span", { class: "seal empty" }, ["Empty"]),
         ]),
@@ -1432,6 +1753,7 @@ const SCRIPT = `
       ]),
       error(),
       el("div", { class: "banners" }, banners),
+      preparationGuide(),
       el("div", { class: "plaque dispatch" }, [
         el("div", null, [
           el("div", { class: "invite-label" }, ["Invitation"]),
@@ -1472,7 +1794,7 @@ const SCRIPT = `
   }
   function phaseText() {
     if (match.matchResult.status === "complete") return "Finished";
-    if (match.pending) return "Response: " + match.pending.kind.replace(/_/g, " ");
+    if (match.pending) return match.pending.kind === "dying_rescue" ? "RESCUE" : "RESPOND";
     return match.turnPhase === "discard" ? "DISCARD" : "MAIN";
   }
   function phaseClass() {
@@ -1602,7 +1924,7 @@ const SCRIPT = `
       el("div", { class: "seat-crown" }, [
         el("span", { class: "screst" }, [houseShield(p.team)]),
         el("span", { class: "sname" }, ["Seat " + p.seat]),
-        el("span", { class: "team-tag " + p.team.toLowerCase() }, ["Team " + p.team]),
+        el("span", { class: "team-tag " + p.team.toLowerCase(), title: teamName(p.team) }, ["Team " + p.team]),
       ]),
       el("div", { class: "seat-mid" }, [
         el("div", { class: "hp" }, [
@@ -1612,8 +1934,8 @@ const SCRIPT = `
         compact ? el("span", { class: "hand-total", "aria-label": "Cards in hand: " + p.handSize }, ["Cards", el("b", null, [String(p.handSize)])]) : el("span", { class: "hand-shield", title: "Cards in hand" }, [shieldBadge(), el("b", null, [String(p.handSize)]), el("span", { class: "sr-only" }, ["Cards: " + p.handSize + (p.eliminated ? " (eliminated)" : "")])]),
       ]),
       el("div", { class: "seat-tags" }, [
+        el("span", { class: "tag relationship " + relationship(p.team, p.seat, match.viewerSeat, match.mode).toLowerCase() }, [relationship(p.team, p.seat, match.viewerSeat, match.mode)]),
         p.seat === 1 ? el("span", { class: "tag host" }, ["Host"]) : "",
-        p.seat === match.viewerSeat ? el("span", { class: "tag you" }, ["You"]) : "",
         p.eliminated ? el("span", { class: "tag out" }, ["Eliminated"]) : "",
         won ? el("span", { class: "tag turn" }, ["Victor"]) : "",
         !done && p.seat === match.activeSeat ? el("span", { class: "tag turn" }, ["Active turn"]) : "",
@@ -1634,7 +1956,7 @@ const SCRIPT = `
     }
     if (pending && pending.kind === "dying_rescue" && pending.queue[0] === me.seat) return { types: ["heal"], cls: "z-rescue", title: "Rescue seat " + pending.dyingSeat, hint: "Drop or tap your Heal card to save them." };
     if (!pending && match.activeSeat === me.seat && match.turnPhase !== "discard" && match.matchResult.status !== "complete") {
-      return { types: ["heal", "insight", "war_cry", "arrow_volley"], cls: "z-cast", title: "Cast on the table", hint: "Drop onto the table or click a lit card once. Strikes and ploys target a foe." };
+      return { types: ["heal", "insight", "war_cry", "arrow_volley"], cls: "z-cast", title: "Cast on the table", hint: "Drop onto the table or click a lit card once. Attack, Seize and Disarm target another seat." };
     }
     return null;
   }
@@ -1685,12 +2007,18 @@ const SCRIPT = `
     return [];
   }
 
+  function positionForSeat(seat) {
+    if (match.mode !== "2v2" || !match.viewerSeat) return "far";
+    return ["self", "left", "across", "right"][(seat - match.viewerSeat + 4) % 4];
+  }
+
   function battleTable(me, opponents) {
     var done = match.matchResult.status === "complete";
     var deadline = match.deadline;
     var log = match.publicLog.slice(-3).reverse();
     var top = match.discardPile.length ? match.discardPile[match.discardPile.length - 1] : null;
     var zone = centralZoneInfo(me);
+    var guide = decisionGuide();
 
     var drawStack = el("div", { class: "pile draw" }, [
       el("span", { class: "pile-stack draw", "aria-hidden": "true" }, [el("i", null, []), el("i", null, []), el("i", null, [])]),
@@ -1712,17 +2040,18 @@ const SCRIPT = `
     }
     var turnLine;
     if (done) turnLine = el("div", { class: "turn-line" }, ["Result: ", el("b", { id: "winner" }, ["Winner: Team " + match.matchResult.winningTeam])]);
-    else if (deadline && deadline.responderSeat !== match.activeSeat) turnLine = el("div", { class: "turn-line" }, ["Seat ", el("b", { id: "active" }, [String(match.activeSeat)]), "'s turn — waiting on seat " + deadline.responderSeat]);
+    else if (deadline && match.pending) turnLine = el("div", { class: "turn-line" }, ["Turn: seat ", el("b", { id: "active" }, [String(match.activeSeat)]), deadline.responderSeat === match.viewerSeat ? " · You respond" : " · Seat " + deadline.responderSeat + " responds"]);
     else turnLine = el("div", { class: "turn-line" }, ["Seat ", el("b", { id: "active" }, [String(match.activeSeat)]), match.activeSeat === match.viewerSeat ? " (you) to act" : " to act"]);
 
     var kids = [
       el("img", { class: "table-art", src: "/card-clash/environment/war-table", alt: "", "aria-hidden": "true", draggable: "false" }, []),
+      el("div", { class: "scene-edge-shade", "aria-hidden": "true" }, []),
       zone && !done ? el("div", { class: "table-drop-area", "data-drop": zone.types.join(" "), "data-zone": "1", "aria-hidden": "true" }, []) : "",
-      el("div", { class: "far" }, opponents.map(function (p) {
+      el("div", { class: "far" + (match.mode === "2v2" ? " around-table" : "") }, opponents.map(function (p) {
         var drop = [];
         if (!p.eliminated) { drop.push("attack"); if (p.handSize > 0) { drop.push("seize"); drop.push("disarm"); } }
         var knightSrc = "/card-clash/knight/" + (p.team === "A" ? "red" : "blue") + "/" + knightPoseFor(p);
-        return el("div", { class: "knight-stand" + (p.eliminated ? " out" : "") }, [
+        return el("div", { class: "knight-stand position-" + positionForSeat(p.seat) + (p.eliminated ? " out" : ""), "data-player-seat": String(p.seat), "data-position": positionForSeat(p.seat), role: "group", "aria-label": "Seat " + p.seat + ", " + positionForSeat(p.seat) }, [
           el("img", { class: "knight-fig", src: knightSrc, alt: "", "aria-hidden": "true", draggable: "false" }, []),
           seatPanel(p, done, false, drop),
         ]);
@@ -1745,16 +2074,18 @@ const SCRIPT = `
         el("span", { class: "vt" }, ["Team " + match.matchResult.winningTeam + " Triumphs"]),
         el("span", { class: "vs" }, [me ? (mine ? "Your house holds the field" : "Your house has fallen") : "The battle is decided"]),
       ]));
-    } else if (zone) {
+    } else {
+      zone = zone || { types: [], cls: "z-guide" };
       var hasActions = zone.cls === "z-response" || zone.cls === "z-rescue";
       var actions = hasActions ? centerResponseActions(me) : [];
-      var zp = { class: "zone " + zone.cls + (actions.length ? " has-actions" : ""), "data-drop": zone.types.join(" "), "data-zone": "1" };
+      var zp = { class: "zone " + zone.cls + (actions.length ? " has-actions" : ""), id: "decision-guide", role: "status", "aria-live": "polite" };
+      if (zone.types.length) { zp["data-drop"] = zone.types.join(" "); zp["data-zone"] = "1"; }
       kids.push(el("div", zp, [
-        el("div", { class: "zone-head" }, [crest("zone-icon"), el("div", null, [el("div", { class: "zone-title" }, [zone.title]), el("div", { class: "zone-hint" }, [zone.hint])])]),
+        el("div", { class: "zone-head" }, [crest("zone-icon"), el("div", null, [el("div", { class: "zone-title" }, [guide.title]), el("div", { class: "zone-hint" }, [guide.detail]), el("div", { class: "zone-expiry" }, [guide.expiry])])]),
         actions.length ? el("div", { class: "zone-actions" }, actions) : "",
       ]));
     }
-    return el("div", { class: "stage-wrap" }, [el("div", { class: "stage" }, kids)]);
+    return el("div", { class: "stage-wrap" }, [el("div", { class: "stage" + (match.mode === "2v2" ? " seats-four" : "") }, kids)]);
   }
 
   function prompt(me) {
@@ -1806,13 +2137,56 @@ const SCRIPT = `
     ]);
   }
 
+  // Same lazily-built singleton <dialog> idiom as openHelp(): a native
+  // modal with a manual Tab focus trap and focus restored to the trigger
+  // on close, so Escape/backdrop/focus behavior matches Help exactly
+  // rather than introducing a second confirmation pattern.
+  var lobbyDialog = null;
+  function openLobbyConfirm(done) {
+    if (!lobbyDialog) {
+      lobbyDialog = el("dialog", { id: "lobby-confirm", class: "help-dialog lobby-dialog", "aria-labelledby": "lobby-confirm-title" }, [
+        el("header", { class: "help-header" }, [el("h2", { id: "lobby-confirm-title" }, ["Return to lobby?"])]),
+        el("p", { id: "lobby-confirm-body" }, []),
+        el("div", { class: "lobby-dialog-actions" }, [
+          el("button", { id: "lobby-stay", class: "btn ghost", onclick: function () { lobbyDialog.close(); } }, ["Stay"]),
+          el("a", { id: "lobby-confirm-go", class: "btn primary", href: "#" }, ["Return to Lobby"]),
+        ]),
+      ]);
+      lobbyDialog.addEventListener("keydown", function (event) {
+        if (event.key !== "Tab") return;
+        var controls = Array.prototype.filter.call(lobbyDialog.querySelectorAll("button,a[href],[tabindex]"), function (node) { return !node.disabled && node.tabIndex >= 0 && node.getClientRects().length; });
+        var first = controls[0], last = controls[controls.length - 1];
+        if (!first) { event.preventDefault(); return; }
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      });
+      lobbyDialog.addEventListener("close", function () { var trigger = document.getElementById("return-lobby"); if (trigger) trigger.focus({ preventScroll: true }); });
+      document.body.appendChild(lobbyDialog);
+    }
+    document.getElementById("lobby-confirm-body").textContent = done
+      ? "Your match will continue, and you can rejoin. This result is preserved."
+      : "Your match will continue, and you can rejoin.";
+    document.getElementById("lobby-confirm-go").href = "/card-clash?resume=" + encodeURIComponent(room.code);
+    lobbyDialog.showModal();
+    document.getElementById("lobby-stay").focus();
+  }
+
+  function returnLobbyLink(done) {
+    return el("button", {
+      id: "return-lobby", class: "btn ghost lobby-link", type: "button", "aria-haspopup": "dialog",
+      title: done ? "Return to the lobby; this result is preserved." : "The match continues with its timers. Return using the same browser.",
+      "aria-label": done ? "Return to lobby" : "Return to lobby; the match continues",
+      onclick: function () { openLobbyConfirm(done); },
+    }, ["Lobby"]);
+  }
+
   function battle() {
     var me = viewer();
     var done = match.matchResult.status === "complete";
     var opponents = match.players.filter(function (p) { return p.seat !== match.viewerSeat; });
     var modeName = (MODES.filter(function (m) { return m.v === match.mode; })[0] || {}).name || match.mode;
     return el("div", { class: "battle" }, [
-      el("div", { class: "topbar" }, [crest("crest"), el("strong", null, ["Card Clash"]), el("span", { class: "room-code" }, ["ROOM " + room.code]), el("span", { class: "mode-pill" }, [modeName + " · " + match.mode]), el("a", { id: "return-lobby", class: "btn ghost small lobby-link", href: "/card-clash?resume=" + encodeURIComponent(room.code), title: done ? "Return to the lobby; this result is preserved." : "The match continues with its timers. Return using the same browser.", "aria-label": done ? "Return to lobby" : "Return to lobby; the match continues" }, ["Lobby"])]),
+      el("div", { class: "topbar" }, [crest("crest"), el("strong", null, ["Card Clash"]), el("span", { class: "room-code" }, ["ROOM " + room.code]), el("span", { class: "mode-pill" }, [modeName + " · " + match.mode]), el("span", { class: "team-identity", id: "team-identity" }, [me ? "You — " + teamName(me.team) : "Spectating"]), el("button", { id: "help-open", class: "btn ghost help-link", "aria-haspopup": "dialog", onclick: openHelp }, ["? Help"]), returnLobbyLink(done)]),
       battleTable(me, opponents),
       handDock(me),
     ]);
@@ -2020,7 +2394,8 @@ const SCRIPT = `
   function tickCountdown() {
     var c = document.getElementById("countdown");
     if (!c || !c.hasAttribute("data-expires")) return;
-    var total = 10000;
+    updateHelpClock();
+    var total = DECISION_MS;
     var remaining = Math.max(0, Number(c.getAttribute("data-expires")) - Date.now());
     c.textContent = (remaining / 1000).toFixed(1) + "s";
     var urgent = remaining <= 3000;
@@ -2057,6 +2432,7 @@ const SCRIPT = `
     } else {
       root.appendChild(el("div", { class: "entrance" }, [room ? lobbyRoom() : lobbyEntry()]));
     }
+    updateHelp();
     if (focusId) { var nextFocus = document.getElementById(focusId); if (nextFocus && !nextFocus.disabled) nextFocus.focus({ preventScroll: true }); }
     if (match && match.deadline && match.matchResult.status !== "complete") {
       tickCountdown();

@@ -388,3 +388,223 @@ it("P5.3: the same fan and independent gauntlets survive waiting, targeting, dis
     }
   }
 });
+
+
+it("novice 2v2 preparation explains targeting, responses, discard and seat-relative teams", async () => {
+  const jars = [new CookieJar(), new CookieJar(), new CookieJar(), new CookieJar()];
+  const { code } = await (await jars[0]!.post("/api/card-clash/rooms", { mode: "2v2" })).json() as { code: string };
+  for (const jar of jars.slice(1)) await jar.post(`/api/card-clash/rooms/${code}/join`, {});
+  const dom = await openPage(jars[3]!, `?room=${code}`);
+  try {
+    const doc = dom.window.document;
+    await waitFor(() => !!doc.getElementById("quick-start-title"), "preparation guide");
+    const guide = doc.querySelector(".quick-start")!;
+    expect(guide.textContent).toContain("seat 4 — Team A (Red)");
+    expect(guide.textContent).toContain("seats 1 + 4");
+    expect(guide.textContent).toContain("or click Attack then click a target");
+    expect(guide.querySelectorAll(".learn-step")).toHaveLength(4);
+    expect(guide.querySelectorAll(".reference-card")).toHaveLength(8);
+    expect(guide.textContent).toContain("15s");
+    const banners = [...doc.querySelectorAll(".banner-seat")];
+    expect(banners[0]!.textContent).toContain("Ally");
+    expect(banners[1]!.textContent).toContain("Opponent");
+    expect(banners[3]!.textContent).toContain("You");
+    expect(guide.textContent).toContain("including allies");
+  } finally { dom.window.close(); }
+});
+
+it("Help never mutates a match or deadline and follows server phase changes while remaining open", async () => {
+  const jars = [new CookieJar(), new CookieJar(), new CookieJar(), new CookieJar()];
+  const { code } = await (await jars[0]!.post("/api/card-clash/rooms", { mode: "2v2" })).json() as { code: string };
+  for (const jar of jars.slice(1)) await jar.post(`/api/card-clash/rooms/${code}/join`, {});
+  for (const jar of jars) await jar.post(`/api/card-clash/rooms/${code}/ready`, { ready: true });
+  await jars[0]!.post(`/api/card-clash/rooms/${code}/start`, {});
+  const matchId = db.getCardClashMatchForRoom(db.getCardClashRoomByCode(code)!.id)!.id;
+  fxForce(matchId, s => fxWithHand(s, 1, ["attack", "dodge", "heal", "insight", "war_cry"]));
+  const dom = await openPage(jars[0]!, `?room=${code}`);
+  try {
+    const doc = dom.window.document;
+    // jsdom does not implement native dialog behaviour; native Escape/focus
+    // trapping are exercised separately in the real Chromium verification.
+    dom.window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+    dom.window.HTMLDialogElement.prototype.close = function () { this.open = false; this.dispatchEvent(new dom.window.Event("close")); };
+    await waitFor(() => !!doc.getElementById("hand"), "battle");
+    expect(doc.getElementById("team-identity")!.textContent).toContain("Team A (Red)");
+    expect(doc.querySelector('.far [data-seat="4"] .relationship')!.textContent).toBe("Ally");
+    const before = db.getCardClashMatchById(matchId)!;
+    const deadline = db.getCardClashDeadline(matchId)!;
+    (doc.getElementById("help-open") as HTMLButtonElement).click();
+    const dialog = doc.getElementById("game-help") as HTMLDialogElement;
+    expect(dialog.open).toBe(true);
+    expect(doc.getElementById("help-context")!.textContent).toContain("Your turn");
+    expect(doc.getElementById("help-running")!.textContent).toContain("timers continue");
+    expect(db.getCardClashMatchById(matchId)!.version).toBe(before.version);
+    expect(db.getCardClashDeadline(matchId)).toEqual(deadline);
+    fxForce(matchId, s => ({ ...s, activeSeat: 2, pending: { kind: "attack_response", attacker: 2, target: 1 } }));
+    FakeEventSource.instances.at(-1)!.emit("invalidate");
+    await waitFor(() => doc.getElementById("help-context")!.textContent!.includes("You must respond — Attack"), "live Help response context");
+    expect(dialog.open).toBe(true);
+    expect(doc.getElementById("help-context")!.textContent).toContain("Play Dodge");
+    expect(doc.getElementById("active")!.textContent).toBe("2");
+    expect(doc.getElementById("help-clock")!.textContent).toContain("Seat 1 decision");
+    const afterAttackDeadline = db.getCardClashDeadline(matchId)!;
+    (doc.getElementById("help-close") as HTMLButtonElement).click();
+    expect(dialog.open).toBe(false);
+    expect(doc.activeElement).toBe(doc.getElementById("help-open"));
+    expect(db.getCardClashDeadline(matchId)).toEqual(afterAttackDeadline);
+    expect(doc.querySelectorAll("#hand .card.playable")).toHaveLength(1);
+    expect(doc.querySelector("#hand .card.playable.card-dodge")).not.toBeNull();
+  } finally { dom.window.close(); }
+});
+
+
+it("target selection belongs to one physical card: duplicate Attack, Seize and Disarm can switch, cancel and refresh independently", async () => {
+  const host = new CookieJar(), guest = new CookieJar();
+  const { code } = await (await host.post("/api/card-clash/rooms", { mode: "1v1" })).json() as { code: string };
+  await guest.post(`/api/card-clash/rooms/${code}/join`, {});
+  for (const jar of [host, guest]) await jar.post(`/api/card-clash/rooms/${code}/ready`, { ready: true });
+  await host.post(`/api/card-clash/rooms/${code}/start`, {});
+  const matchId = db.getCardClashMatchForRoom(db.getCardClashRoomByCode(code)!.id)!.id;
+  fxForce(matchId, s => fxWithHand(s, 1, ["attack", "attack", "seize", "seize", "disarm", "disarm"]));
+  const dom = await openPage(host, `?room=${code}`);
+  try {
+    const doc = dom.window.document;
+    await waitFor(() => !!doc.getElementById("hand"), "duplicate-card hand");
+    const before = db.getCardClashMatchById(matchId)!;
+    const deadline = db.getCardClashDeadline(matchId)!;
+    for (const type of ["attack", "seize", "disarm"] as const) {
+      const ids = [...doc.querySelectorAll(`.card-${type} button`)].map(b => b.id);
+      const click = (id: string) => (doc.getElementById(id) as HTMLButtonElement).click();
+      const selected = () => [...doc.querySelectorAll("#hand .card.targeting button")].map(b => b.id);
+      click(ids[0]!);
+      expect(selected()).toEqual([ids[0]]);
+      expect(doc.getElementById(ids[0]!)!.getAttribute("aria-pressed")).toBe("true");
+      expect(doc.getElementById(ids[1]!)!.getAttribute("aria-pressed")).toBe("false");
+      click(ids[1]!);
+      expect(selected()).toEqual([ids[1]]);
+      click(ids[1]!);
+      expect(selected()).toEqual([]);
+      expect(doc.getElementById("target-2")).toBeNull();
+      click(ids[1]!);
+      const api = (dom.window as unknown as { __cardClash: { refresh: (force?: boolean) => Promise<void> } }).__cardClash;
+      await api.refresh(true);
+      expect(selected()).toEqual([ids[1]]);
+      click("cancel-target");
+      expect(selected()).toEqual([]);
+      click(`act-play_${type}`);
+      expect(selected()).toEqual([ids[0]]);
+      click("cancel-target");
+    }
+    expect(db.getCardClashMatchById(matchId)!.version).toBe(before.version);
+    expect(db.getCardClashDeadline(matchId)).toEqual(deadline);
+    (doc.querySelector(".card-attack button") as HTMLButtonElement).click();
+    fxForce(matchId, s => ({ ...s, activeSeat: 2 }));
+    FakeEventSource.instances.at(-1)!.emit("invalidate");
+    await waitFor(() => !!doc.getElementById("waiting"), "new server state clears target selection");
+    expect(doc.querySelectorAll("#hand .card.targeting")).toHaveLength(0);
+  } finally { dom.window.close(); }
+});
+
+it("card explanations distinguish ordinary limits from legal group responses and rescue without changing play or deadlines", async () => {
+  const host = new CookieJar(), guest = new CookieJar();
+  const { code } = await (await host.post("/api/card-clash/rooms", { mode: "1v1" })).json() as { code: string };
+  await guest.post(`/api/card-clash/rooms/${code}/join`, {});
+  for (const jar of [host, guest]) await jar.post(`/api/card-clash/rooms/${code}/ready`, { ready: true });
+  await host.post(`/api/card-clash/rooms/${code}/start`, {});
+  const matchId = db.getCardClashMatchForRoom(db.getCardClashRoomByCode(code)!.id)!.id;
+  fxForce(matchId, s => {
+    const withCards = fxWithHand(s, 1, ["attack", "dodge", "heal", "insight", "seize", "disarm", "war_cry", "arrow_volley"]);
+    const me = withCards.players.get(1)!;
+    return { ...withCards, players: new Map(withCards.players).set(1, { ...me, hp: me.maxHp }), normalAttacksUsedThisTurn: 0 };
+  });
+  const dom = await openPage(host, `?room=${code}`);
+  try {
+    const doc = dom.window.document;
+    const status = (type: CardType) => doc.querySelector(`.card-${type} .card-status`)?.textContent;
+    const playable = (type: CardType) => doc.querySelector(`.card-${type}`)?.classList.contains("playable");
+    await waitFor(() => !!doc.getElementById("hand"), "card explanations");
+    expect(status("dodge")).toBe("Response only");
+    expect(status("heal")).toBe("Full HP");
+    expect(playable("heal")).toBe(false);
+    expect(status("insight")).toBe("Tap to play");
+    expect(doc.querySelector(".card-insight .ribbon")!.textContent).toBe("Draw");
+    expect(doc.querySelector(".card-insight .card-effect strong")!.textContent).toBe("2 cards");
+    expect(doc.querySelector(".card-seize .card-effect")!.textContent).toContain("from target");
+    expect(doc.querySelector(".card-disarm .card-effect")!.textContent).toContain("Target discards");
+    expect(doc.querySelector(".card-disarm button")!.getAttribute("aria-label")).toContain("another living player");
+    const before = db.getCardClashMatchById(matchId)!;
+    const deadline = db.getCardClashDeadline(matchId)!;
+    (doc.querySelector(".card-attack button") as HTMLButtonElement).click();
+    expect(status("attack")).toBe("Choose target");
+    doc.getElementById("cancel-target")!.click();
+    expect(db.getCardClashMatchById(matchId)!.version).toBe(before.version);
+    expect(db.getCardClashDeadline(matchId)).toEqual(deadline);
+
+    async function change(mutate: (s: MatchState) => MatchState, ready: () => boolean) {
+      fxForce(matchId, mutate);
+      FakeEventSource.instances.at(-1)!.emit("invalidate");
+      await waitFor(ready, "updated card explanation");
+    }
+    await change(s => ({ ...fxWithHand(s, 2, []), normalAttacksUsedThisTurn: 1 }), () => status("attack") === "Attack limit used");
+    expect(status("seize")).toBe("Empty hands");
+    expect(status("disarm")).toBe("Empty hands");
+    expect(playable("attack")).toBe(false);
+    await change(s => ({ ...s, pending: { kind: "group_response", context: { actor: 2, cardType: "war_cry", requiredResponseType: "attack", queue: [1] } } }), () => status("attack") === "Play Attack");
+    expect(playable("attack")).toBe(true); // A response does not consume the ordinary Attack allowance.
+    expect(status("dodge")).toBe("Needs Attack");
+    await change(s => ({ ...s, pending: { kind: "dying_rescue", dyingSeat: 2, queue: [1, 2], resumeActiveSeat: 1 } }), () => status("heal") === "Play Heal");
+    expect(playable("heal")).toBe(true); // Full HP blocks self-Heal, never a requested rescue.
+    expect(status("attack")).toBe("Needs Heal");
+    await change(s => ({ ...s, pending: { kind: "attack_response", attacker: 1, target: 2 } }), () => status("dodge") === "Wait for seat 2");
+    expect(doc.querySelectorAll("#hand .card.playable")).toHaveLength(0);
+    await change(s => ({ ...s, pending: undefined, activeSeat: 2 }), () => status("insight") === "Wait for turn");
+    expect(status("dodge")).toBe("Response only");
+    await change(s => ({ ...s, matchResult: { status: "complete", winningTeam: "A" } }), () => status("attack") === "Match over");
+    expect(doc.querySelectorAll("#hand .card.playable")).toHaveLength(0);
+  } finally { dom.window.close(); }
+});
+it("2v2 rotates the fixed clockwise seats around each viewer and targets the actual left/across/right player", async () => {
+  const jars = [new CookieJar(), new CookieJar(), new CookieJar(), new CookieJar()];
+  const { code } = await (await jars[0]!.post("/api/card-clash/rooms", { mode: "2v2" })).json() as { code: string };
+  for (const jar of jars.slice(1)) await jar.post(`/api/card-clash/rooms/${code}/join`, {});
+  for (const jar of jars) await jar.post(`/api/card-clash/rooms/${code}/ready`, { ready: true });
+  await jars[0]!.post(`/api/card-clash/rooms/${code}/start`, {});
+  const matchId = db.getCardClashMatchForRoom(db.getCardClashRoomByCode(code)!.id)!.id;
+  for (const viewerSeat of [1, 2, 3, 4] as const) {
+    for (const [offset, position] of [[1, "left"], [2, "across"], [3, "right"]] as const) {
+      fxForce(matchId, s => ({ ...fxWithHand(s, viewerSeat, ["attack"]), activeSeat: viewerSeat, normalAttacksUsedThisTurn: 0, pending: undefined, turnPhase: undefined }));
+      const dom = await openPage(jars[viewerSeat - 1]!, `?room=${code}`);
+      try {
+        const doc = dom.window.document;
+        await waitFor(() => !!doc.getElementById("hand"), "2v2 table");
+        expect(doc.querySelectorAll(".around-table .knight-stand")).toHaveLength(3);
+        const targetSeat = ((viewerSeat - 1 + offset) % 4 + 1) as Seat;
+        const station = doc.querySelector(`.around-table .position-${position}`)!;
+        expect(station).not.toBeNull();
+        expect(station.getAttribute("data-player-seat")).toBe(String(targetSeat));
+        const before = db.getCardClashMatchById(matchId)!;
+        const deadline = db.getCardClashDeadline(matchId)!;
+        (doc.querySelector(".card-attack button") as HTMLButtonElement).click();
+        expect(db.getCardClashMatchById(matchId)!.version).toBe(before.version);
+        expect(db.getCardClashDeadline(matchId)).toEqual(deadline);
+        (doc.querySelector(`.position-${position} .seat.pick`) as HTMLElement).click();
+        await waitFor(() => {
+          const pending = db.getCardClashMatchById(matchId)!.state.pending;
+          return pending?.kind === "attack_response" && pending.target === targetSeat;
+        }, "directional target submitted to server");
+        const pending = db.getCardClashMatchById(matchId)!.state.pending!;
+        expect(pending.kind === "attack_response" && pending.attacker).toBe(viewerSeat);
+      } finally { dom.window.close(); }
+    }
+  }
+  fxForce(matchId, s => ({ ...s, pending: undefined, players: new Map(s.players).set(2, { ...s.players.get(2)!, eliminated: true, hp: 0 }) }));
+  const dom = await openPage(jars[0]!, `?room=${code}`);
+  try {
+    const doc = dom.window.document;
+    await waitFor(() => !!doc.getElementById("hand"), "eliminated seat position");
+    expect(doc.querySelector(".position-left")!.getAttribute("data-player-seat")).toBe("2");
+    expect(doc.querySelector(".position-left .seat.out")).not.toBeNull();
+    expect(doc.querySelector(".position-across")!.getAttribute("data-player-seat")).toBe("3");
+    expect(doc.querySelector(".position-right")!.getAttribute("data-player-seat")).toBe("4");
+  } finally { dom.window.close(); }
+});

@@ -310,14 +310,36 @@ it("playtest: discard selection stops at the excess and a selected card remains 
   p.dom.window.close();
 });
 
-it("playtest: lobby navigation preserves a return URL without issuing a gameplay action", async () => {
+it("playtest: the Lobby button asks for confirmation; Stay keeps the match untouched and the link out of the DOM, Return to Lobby carries the resume URL without issuing a gameplay action", async () => {
   const { code, jars, matchId } = await setup("1v1");
   const p = await open(jars[1]!, code);
   const before = cur(matchId);
-  const link = p.doc.getElementById("return-lobby") as HTMLAnchorElement;
-  expect(link).not.toBeNull();
-  expect(new URL(link.href).searchParams.get("resume")).toBe(code);
-  expect(link.title).toContain("continues");
+  // jsdom does not implement native dialog behaviour; native Escape/focus
+  // trapping are exercised separately in the real Chromium verification
+  // (see the Help dialog precedent in spec/card-clash-ui.test.ts).
+  p.dom.window.HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+  p.dom.window.HTMLDialogElement.prototype.close = function () { this.open = false; this.dispatchEvent(new p.dom.window.Event("close")); };
+  const trigger = p.doc.getElementById("return-lobby") as HTMLButtonElement;
+  expect(trigger).not.toBeNull();
+  expect(trigger.tagName).toBe("BUTTON");
+  expect(trigger.title).toContain("continues");
+  expect(p.doc.getElementById("lobby-confirm")).toBeNull(); // not built until first opened
+
+  trigger.click();
+  const dialog = p.doc.getElementById("lobby-confirm") as HTMLDialogElement;
+  expect(dialog.open).toBe(true);
+  expect(p.doc.getElementById("lobby-confirm-body")!.textContent).toContain("will continue");
+  expect(p.doc.getElementById("lobby-confirm-body")!.textContent).toContain("rejoin");
+
+  (p.doc.getElementById("lobby-stay") as HTMLButtonElement).click();
+  expect(dialog.open).toBe(false);
+  expect(p.doc.activeElement).toBe(trigger);
+  expect(p.posts).toHaveLength(0);
+  expect(cur(matchId)).toEqual(before);
+
+  trigger.click();
+  const go = p.doc.getElementById("lobby-confirm-go") as HTMLAnchorElement;
+  expect(new URL(go.href).searchParams.get("resume")).toBe(code);
   expect(p.posts).toHaveLength(0);
   expect(cur(matchId)).toEqual(before);
   p.dom.window.close();

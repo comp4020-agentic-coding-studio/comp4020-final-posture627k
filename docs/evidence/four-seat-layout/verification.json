@@ -1,0 +1,592 @@
+{
+  "recordedAt": "2026-10-23T09:10:07.437258+00:00",
+  "baseHead": "70ec40a6a1627c10be06d99be6e3171674ad2311",
+  "worktree": "uncommitted local repair; earlier local changes retained",
+  "uiSha256": "226d44d6f1b01d070c04af7bdf914fd934eb6eb205bf52fe1892a4ae7654d83e",
+  "checks": {
+    "git diff --check": "passed",
+    "pnpm typecheck": "passed",
+    "pnpm check": {
+      "files": 22,
+      "tests": 383,
+      "status": "passed"
+    }
+  },
+  "newRegression": {
+    "before": "failed: no directional stations",
+    "after": "passed: four viewer rotations, actual server target mapping and fixed eliminated station"
+  },
+  "fourSeatBrowser": {
+    "browser": "156.0.8078.47",
+    "viewports": [
+      [
+        1920,
+        1080
+      ],
+      [
+        1366,
+        768
+      ],
+      [
+        844,
+        390
+      ],
+      [
+        390,
+        844
+      ]
+    ],
+    "projectionCases": 160,
+    "directionalDrags": [
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "viewer": 1,
+        "position": "left",
+        "type": "play_attack",
+        "target": 2
+      },
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "viewer": 1,
+        "position": "across",
+        "type": "play_seize",
+        "target": 3
+      },
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "viewer": 1,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 4
+      },
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "viewer": 2,
+        "position": "left",
+        "type": "play_attack",
+        "target": 3
+      },
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "viewer": 2,
+        "position": "across",
+        "type": "play_seize",
+        "target": 4
+      },
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "viewer": 2,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 1
+      },
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "viewer": 3,
+        "position": "left",
+        "type": "play_attack",
+        "target": 4
+      },
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "viewer": 3,
+        "position": "across",
+        "type": "play_seize",
+        "target": 1
+      },
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "viewer": 3,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 2
+      },
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "viewer": 4,
+        "position": "left",
+        "type": "play_attack",
+        "target": 1
+      },
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "viewer": 4,
+        "position": "across",
+        "type": "play_seize",
+        "target": 2
+      },
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "viewer": 4,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 3
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "viewer": 1,
+        "position": "left",
+        "type": "play_attack",
+        "target": 2
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "viewer": 1,
+        "position": "across",
+        "type": "play_seize",
+        "target": 3
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "viewer": 1,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 4
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "viewer": 2,
+        "position": "left",
+        "type": "play_attack",
+        "target": 3
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "viewer": 2,
+        "position": "across",
+        "type": "play_seize",
+        "target": 4
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "viewer": 2,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 1
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "viewer": 3,
+        "position": "left",
+        "type": "play_attack",
+        "target": 4
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "viewer": 3,
+        "position": "across",
+        "type": "play_seize",
+        "target": 1
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "viewer": 3,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 2
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "viewer": 4,
+        "position": "left",
+        "type": "play_attack",
+        "target": 1
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "viewer": 4,
+        "position": "across",
+        "type": "play_seize",
+        "target": 2
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "viewer": 4,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 3
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "viewer": 1,
+        "position": "left",
+        "type": "play_attack",
+        "target": 2
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "viewer": 1,
+        "position": "across",
+        "type": "play_seize",
+        "target": 3
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "viewer": 1,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 4
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "viewer": 2,
+        "position": "left",
+        "type": "play_attack",
+        "target": 3
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "viewer": 2,
+        "position": "across",
+        "type": "play_seize",
+        "target": 4
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "viewer": 2,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 1
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "viewer": 3,
+        "position": "left",
+        "type": "play_attack",
+        "target": 4
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "viewer": 3,
+        "position": "across",
+        "type": "play_seize",
+        "target": 1
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "viewer": 3,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 2
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "viewer": 4,
+        "position": "left",
+        "type": "play_attack",
+        "target": 1
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "viewer": 4,
+        "position": "across",
+        "type": "play_seize",
+        "target": 2
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "viewer": 4,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 3
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "viewer": 1,
+        "position": "left",
+        "type": "play_attack",
+        "target": 2
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "viewer": 1,
+        "position": "across",
+        "type": "play_seize",
+        "target": 3
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "viewer": 1,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 4
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "viewer": 2,
+        "position": "left",
+        "type": "play_attack",
+        "target": 3
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "viewer": 2,
+        "position": "across",
+        "type": "play_seize",
+        "target": 4
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "viewer": 2,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 1
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "viewer": 3,
+        "position": "left",
+        "type": "play_attack",
+        "target": 4
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "viewer": 3,
+        "position": "across",
+        "type": "play_seize",
+        "target": 1
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "viewer": 3,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 2
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "viewer": 4,
+        "position": "left",
+        "type": "play_attack",
+        "target": 1
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "viewer": 4,
+        "position": "across",
+        "type": "play_seize",
+        "target": 2
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "viewer": 4,
+        "position": "right",
+        "type": "play_disarm",
+        "target": 3
+      }
+    ],
+    "auxiliary": [
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "cancel": "Escape drag + keyboard Cancel passed",
+        "keyboard": "right seat target 4 passed",
+        "directTable": "Insight drop outside prompt passed"
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "cancel": "Escape drag + keyboard Cancel passed",
+        "keyboard": "right seat target 4 passed",
+        "directTable": "Insight drop outside prompt passed"
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "cancel": "Escape drag + keyboard Cancel passed",
+        "keyboard": "right seat target 4 passed",
+        "directTable": "Insight drop outside prompt passed"
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "cancel": "Escape drag + keyboard Cancel passed",
+        "keyboard": "right seat target 4 passed",
+        "directTable": "Insight drop outside prompt passed"
+      }
+    ],
+    "pageErrors": [],
+    "fixtures": "deterministic filtered projections with real page/assets; human acceptance pending"
+  },
+  "existingMatrix": {
+    "browser": "156.0.8078.47",
+    "projectionCases": 84,
+    "viewports": [
+      [
+        1920,
+        1080
+      ],
+      [
+        1366,
+        768
+      ],
+      [
+        844,
+        390
+      ],
+      [
+        390,
+        844
+      ]
+    ],
+    "pointerAndKeyboard": "passed at each viewport",
+    "touch": "drag and pointercancel passed on both mobile sizes",
+    "fixtures": "deterministic filtered projections; real-server smoke is separate",
+    "pageErrors": []
+  },
+  "visualReview": "Codex inspected desktop/laptop and mobile screenshots. Author visual acceptance and participant retesting are pending.",
+  "scope": "2v2 presentation; no rule/engine/privacy/timer/backend changes; no commit/push/deployment",
+  "preview": "manual port 8823 remains stopped; isolated verification servers terminated"
+}

@@ -12,10 +12,10 @@ Two references frame this review. Hunicke, LeBlanc and Zubek's [MDA framework (2
 
 1. Open the game in separate Chrome profiles, or a normal and an incognito window. Two tabs sharing cookies are the same player.
 2. Choose 1v1, 1v2 or 2v2. Create a room and share its invite link. Other players join; everyone marks Ready; the host starts.
-3. On your turn, play available cards, then End Turn. If prompted, select excess cards and confirm discard down to your current HP.
+3. Use ? Help for rules; its timer continues. On your turn, play available cards, then End Turn. If prompted, select excess cards and confirm discard down to your current HP.
 4. Respond when asked: Attack requires Dodge; War Cry requires Attack; Arrow Volley requires Dodge. Declining costs HP. At zero HP, a successful Heal can rescue the dying player; otherwise they are eliminated. Win by eliminating the opposing team.
 
-Attack, Seize and Disarm can target teammates; group attacks affect all other living players. Each action/response/discard window lasts ten seconds. Expiry ends the action phase, declines a response or randomly discards excess cards. Keep the invite URL and browser profile to return; clearing cookies loses that identity. See the [frozen rules](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/blob/main/docs/card-clash-rules.md).
+Attack, Seize and Disarm can target teammates; group attacks affect all other living players. Each action/response/rescue/discard window lasts fifteen seconds. Expiry ends the action phase, declines a response or randomly discards excess cards. Keep the invite URL and browser profile to return; clearing cookies loses that identity. See the [frozen rules](https://github.com/comp4020-agentic-coding-studio/comp4020-final-posture627k/blob/main/docs/card-clash-rules.md).
 
 ## Guarantees and evidence
 

@@ -1,0 +1,231 @@
+{
+  "recordedAt": "2026-10-23T08:28:31.000095+00:00",
+  "baseHead": "70ec40a6a1627c10be06d99be6e3171674ad2311",
+  "worktree": "uncommitted local follow-up; earlier changes preserved",
+  "uiSha256": "e39c3c0bf99bf0cbfb7b722a0989a4ba4b9922b00d95314a83c48b565f9f21d9",
+  "checks": {
+    "git diff --check": "passed",
+    "pnpm typecheck": "passed",
+    "pnpm check": {
+      "files": 22,
+      "tests": 382,
+      "status": "passed"
+    }
+  },
+  "readability": {
+    "browser": "156.0.8078.47",
+    "viewports": [
+      [
+        1920,
+        1080
+      ],
+      [
+        1366,
+        768
+      ],
+      [
+        844,
+        390
+      ],
+      [
+        390,
+        844
+      ]
+    ],
+    "faceMeasurements": 96,
+    "contextMeasurements": 40,
+    "pageErrors": [],
+    "fixtures": "filtered deterministic projections with real running page/assets; no human acceptance"
+  },
+  "layoutAndInput": {
+    "browser": "156.0.8078.47",
+    "projectionCases": 84,
+    "viewports": [
+      [
+        1920,
+        1080
+      ],
+      [
+        1366,
+        768
+      ],
+      [
+        844,
+        390
+      ],
+      [
+        390,
+        844
+      ]
+    ],
+    "pointerAndKeyboard": "passed at each viewport",
+    "touch": "drag and pointercancel passed on both mobile sizes",
+    "fixtures": "deterministic filtered projections; real-server smoke is separate",
+    "pageErrors": []
+  },
+  "duplicateSelection": {
+    "browser": "156.0.8078.47",
+    "cases": [
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "type": "attack",
+        "mouse": "choose/switch passed",
+        "keyboard": "switch/toggle passed",
+        "restingDuplicate": "unchanged",
+        "quickActions": "one matching card selected",
+        "cancel": "cleared",
+        "unchangedRefresh": "preserved"
+      },
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "type": "seize",
+        "mouse": "choose/switch passed",
+        "keyboard": "switch/toggle passed",
+        "restingDuplicate": "unchanged",
+        "quickActions": "one matching card selected",
+        "cancel": "cleared",
+        "unchangedRefresh": "preserved"
+      },
+      {
+        "viewport": [
+          1920,
+          1080
+        ],
+        "type": "disarm",
+        "mouse": "choose/switch passed",
+        "keyboard": "switch/toggle passed",
+        "restingDuplicate": "unchanged",
+        "quickActions": "one matching card selected",
+        "cancel": "cleared",
+        "unchangedRefresh": "preserved"
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "type": "attack",
+        "mouse": "choose/switch passed",
+        "keyboard": "switch/toggle passed",
+        "restingDuplicate": "unchanged",
+        "quickActions": "one matching card selected",
+        "cancel": "cleared",
+        "unchangedRefresh": "preserved"
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "type": "seize",
+        "mouse": "choose/switch passed",
+        "keyboard": "switch/toggle passed",
+        "restingDuplicate": "unchanged",
+        "quickActions": "one matching card selected",
+        "cancel": "cleared",
+        "unchangedRefresh": "preserved"
+      },
+      {
+        "viewport": [
+          1366,
+          768
+        ],
+        "type": "disarm",
+        "mouse": "choose/switch passed",
+        "keyboard": "switch/toggle passed",
+        "restingDuplicate": "unchanged",
+        "quickActions": "one matching card selected",
+        "cancel": "cleared",
+        "unchangedRefresh": "preserved"
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "type": "attack",
+        "mouse": "choose/switch passed",
+        "keyboard": "switch/toggle passed",
+        "restingDuplicate": "unchanged",
+        "quickActions": "one matching card selected",
+        "cancel": "cleared",
+        "unchangedRefresh": "preserved"
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "type": "seize",
+        "mouse": "choose/switch passed",
+        "keyboard": "switch/toggle passed",
+        "restingDuplicate": "unchanged",
+        "quickActions": "one matching card selected",
+        "cancel": "cleared",
+        "unchangedRefresh": "preserved"
+      },
+      {
+        "viewport": [
+          844,
+          390
+        ],
+        "type": "disarm",
+        "mouse": "choose/switch passed",
+        "keyboard": "switch/toggle passed",
+        "restingDuplicate": "unchanged",
+        "quickActions": "one matching card selected",
+        "cancel": "cleared",
+        "unchangedRefresh": "preserved"
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "type": "attack",
+        "mouse": "choose/switch passed",
+        "keyboard": "switch/toggle passed",
+        "restingDuplicate": "unchanged",
+        "quickActions": "one matching card selected",
+        "cancel": "cleared",
+        "unchangedRefresh": "preserved"
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "type": "seize",
+        "mouse": "choose/switch passed",
+        "keyboard": "switch/toggle passed",
+        "restingDuplicate": "unchanged",
+        "quickActions": "one matching card selected",
+        "cancel": "cleared",
+        "unchangedRefresh": "preserved"
+      },
+      {
+        "viewport": [
+          390,
+          844
+        ],
+        "type": "disarm",
+        "mouse": "choose/switch passed",
+        "keyboard": "switch/toggle passed",
+        "restingDuplicate": "unchanged",
+        "quickActions": "one matching card selected",
+        "cancel": "cleared",
+        "unchangedRefresh": "preserved"
+      }
+    ],
+    "fixtures": "Deterministic filtered projections rendered with the real page and assets",
+    "pageErrors": []
+  },
+  "visualReview": "Codex inspected desktop, laptop, landscape and portrait screenshots; author acceptance and novice retesting remain pending",
+  "preview": "manual port 8823 stopped; isolated test servers terminated; no commit/push/deployment"
+}

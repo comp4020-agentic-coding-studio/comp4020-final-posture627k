@@ -1,7 +1,10 @@
-# Card Clash v2.6 — Frozen Game Rules
+# Card Clash v2.7 — Frozen Game Rules
 
-**Status:** Frozen specification. v2.6 adds §11 (10-second action/response
-timers) on top of the v2.5 rules below, which are otherwise unchanged. As of
+**Status:** Current rule baseline v2.7. On 23 October 2026, the author approved
+15-second action, defensive-response, rescue and discard windows after the
+21 October novice playtest. Existing absolute deadlines are not extended;
+new windows use 15 seconds. All other rules and timeout consequences are unchanged.
+The v2.6 revision introduced §11; historical implementation-stage notes follow. As of
 D1A, only the pure card/deck/state/turn-progression engine (§§1–2, 6–7, part
 of §3) is implemented — no combat, card effects, pending responses, rescue
 logic, HTTP, SQLite, SSE, UI, or runtime timeout scheduling exist yet. This
@@ -259,31 +262,31 @@ invent a timeout:
 No burgers, hunger, chips, betting, blinds, pots, poker hands, or any
 gambling-adjacent mechanic. No real money. No more than 4 seats.
 
-## 11. 10-second action and response timers (v2.6)
+## 11. 15-second action and response timers (v2.6)
 
 ### Active turn
 
-- Each active player receives 10 seconds to play a card or voluntarily end
+- Each active player receives 15 seconds to play a card or voluntarily end
   their turn.
 - There is no general limit on proactively played cards; Normal Attack
   retains its existing per-turn limit (§3).
 - A valid card play is accepted only while the server-authoritative
   deadline is open.
 - After a played card's entire effect finishes resolving, the active
-  player receives a **new** full 10-second action period.
+  player receives a **new** full 15-second action period.
 - If the card triggers defensive responses or the dying/rescue procedure,
   the active player's action clock is **suspended** until that resolution
-  completes, then a fresh 10-second period begins.
+  completes, then a fresh 15-second period begins.
 - Invalid actions do not reset or extend the deadline.
 - If the deadline expires with no action taken, the action phase
   automatically ends and the turn proceeds to the discard phase (§5).
 
 ### Defensive responses
 
-- Each player asked to respond receives 10 seconds, starting the moment
+- Each player asked to respond receives 15 seconds, starting the moment
   that individual response becomes active (never before).
 - A valid response immediately resolves or advances the pending effect.
-- If the 10-second deadline expires, the player automatically **declines**
+- If the 15-second deadline expires, the player automatically **declines**
   the response:
   - An expired Dodge request means the target does not dodge (takes the
     hit).
@@ -303,7 +306,7 @@ The approved counterclockwise rescue order (§4) is unchanged by v2.6:
 1. Other living players, starting from the nearest counterclockwise seat.
 2. Continue counterclockwise, skipping eliminated players.
 3. The dying player responds **last**.
-4. Every individual rescue opportunity has its own separate 10-second
+4. Every individual rescue opportunity has its own separate 15-second
    deadline.
 5. The first successful Heal that restores the player above zero ends the
    rescue sequence immediately.
@@ -317,8 +320,8 @@ Enemies may rescue dying enemies (unchanged from §4).
 - If the active player ends MAIN (voluntarily or by MAIN timeout) holding
   no more cards than their **current HP**, no DISCARD phase occurs: the
   turn advances immediately to the next living player, whose MAIN period
-  (and 10-second deadline) begins at once.
-- If they hold more, the DISCARD phase begins with **one** 10-second
+  (and 15-second deadline) begins at once.
+- If they hold more, the DISCARD phase begins with **one** 15-second
   deadline for the whole phase. They may discard manually; partial manual
   discarding does **not** reset or extend the deadline, and invalid
   discard attempts never change it. Reaching the limit ends DISCARD
@@ -363,5 +366,5 @@ implemented in D1A:
   must explicitly address this — e.g. by reconciling any
   already-expired deadline against the clock the next time the machine
   wakes and handles a request, rather than assuming a timer fires exactly
-  at T+10s. This is noted here as a known limitation for that later slice
+  at T+15s. This is noted here as a known limitation for that later slice
   to solve, not solved in D1A.
