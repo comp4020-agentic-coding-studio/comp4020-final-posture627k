@@ -4,7 +4,7 @@ These four images are genuine, unedited local Chromium screenshots captured
 during the actual P5.1–P5.3 repair session on 17 October 2026, recovered from
 the local engineering working directory used for that repair (outside this
 repository). They are presented here as before/after comparisons to support
-[PROCESS.md](../../PROCESS.md)'s account of that repair; they are not a new
+[PROCESS.md](../../../PROCESS.md)'s account of that repair; they are not a new
 screenshot session and no claim is made beyond what each image shows.
 
 ## 1. Inset double-background scene → full-screen war table
@@ -42,7 +42,7 @@ hand region so the dashboard-vs-fan difference is visible at a readable size:
   repository, confirming both were produced from the same packaged source.
 - It does not show every intermediate step between those two commits (P5.1
   and P5.2 are not separately pictured here), other viewports, other phases,
-  or any human playtest reaction — see [the P5.3 audit](../card-clash-p53-audit.md)
+  or any human playtest reaction — see [the P5.3 audit](../../card-clash-p53-audit.md)
   and [P5.6 evidence](../p56/README.md) for the broader automated matrix.
 - Captured by the agent driving that repair session, not by the author
   directly; the author's own visual inspection and acceptance decisions are
